@@ -766,6 +766,7 @@ static int __init atmel_spi_probe(struct platform_device *pdev)
 	/* Initialize the hardware */
 	clk_enable(clk);
 	spi_writel(as, CR, SPI_BIT(SWRST));
+	spi_writel(as, CR, SPI_BIT(SWRST));
 	spi_writel(as, MR, SPI_BIT(MSTR) | SPI_BIT(MODFDIS));
 	spi_writel(as, PTCR, SPI_BIT(RXTDIS) | SPI_BIT(TXTDIS));
 	spi_writel(as, CR, SPI_BIT(SPIEN));
@@ -781,6 +782,7 @@ static int __init atmel_spi_probe(struct platform_device *pdev)
 	return 0;
 
 out_reset_hw:
+	spi_writel(as, CR, SPI_BIT(SWRST));
 	spi_writel(as, CR, SPI_BIT(SWRST));
 	clk_disable(clk);
 	free_irq(irq, master);
@@ -804,6 +806,7 @@ static int __exit atmel_spi_remove(struct platform_device *pdev)
 	/* reset the hardware and block queue progress */
 	spin_lock_irq(&as->lock);
 	as->stopping = 1;
+	spi_writel(as, CR, SPI_BIT(SWRST));
 	spi_writel(as, CR, SPI_BIT(SWRST));
 	spi_readl(as, SR);
 	spin_unlock_irq(&as->lock);

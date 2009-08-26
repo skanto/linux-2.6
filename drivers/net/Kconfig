@@ -218,6 +218,12 @@ config MACB
 	  To compile this driver as a module, choose M here: the module
 	  will be called macb.
 
+config MACB_TX_SRAM
+	bool "Atmel MACB TX buffers in internal SRAM"
+	depends on NET_ETHERNET && MACB && (ARCH_AT91SAM9260 || ARCH_AT91SAM9263)
+	help
+		Use internal SRAM for TX buffers.
+
 source "drivers/net/arm/Kconfig"
 
 config AX88796

@@ -27,6 +27,7 @@
 #include <linux/platform_device.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/nand.h>
+#include <linux/mtd/nand_ecc.h>
 #include <linux/mtd/partitions.h>
 
 #include <linux/gpio.h>
@@ -45,6 +46,11 @@
 #define no_ecc		1
 #else
 #define no_ecc		0
+#endif
+
+#ifdef CONFIG_MTD_NAND_ATMEL_ECC_HW_HSIAO
+#undef hard_ecc
+#define hard_ecc	1
 #endif
 
 /* Register access macros */
@@ -80,6 +86,51 @@ static struct nand_ecclayout atmel_oobinfo_small = {
 		{6, 10}
 	},
 };
+
+#ifdef CONFIG_MTD_NAND_ATMEL_ECC_HW_HSIAO
+static struct nand_ecclayout nand_oob_8 = {
+	.eccbytes = 3,
+	.eccpos = {0, 1, 2},
+	.oobfree = {
+		{.offset = 3,
+		 .length = 2},
+		{.offset = 6,
+		 .length = 2} }
+};
+
+static struct nand_ecclayout nand_oob_16 = {
+	.eccbytes = 6,
+	.eccpos = {0, 1, 2, 3, 6, 7},
+	.oobfree = {
+		{.offset = 8,
+		 . length = 8} }
+};
+
+static struct nand_ecclayout nand_oob_64 = {
+	.eccbytes = 24,
+	.eccpos = {
+		   40, 41, 42, 43, 44, 45, 46, 47,
+		   48, 49, 50, 51, 52, 53, 54, 55,
+		   56, 57, 58, 59, 60, 61, 62, 63 },
+	.oobfree = {
+		{.offset = 2,
+		 .length = 38} }
+};
+
+static struct nand_ecclayout nand_oob_128 = {
+	.eccbytes = 48,
+	.eccpos = {
+		    80,  81,  82,  83,  84,  85,  86,  87,
+		    88,  89,  90,  91,  92,  93,  94,  95,
+		    96,  97,  98,  99, 100, 101, 102, 103,
+		   104, 105, 106, 107, 108, 109, 110, 111,
+		   112, 113, 114, 115, 116, 117, 118, 119,
+		   120, 121, 122, 123, 124, 125, 126, 127},
+	.oobfree = {
+		{.offset = 2,
+		 .length = 38} }
+};
+#endif
 
 struct atmel_nand_host {
 	struct nand_chip	nand_chip;
@@ -215,6 +266,38 @@ static int atmel_nand_read_oob_512(struct mtd_info *mtd,
 	return sndcmd;
 }
 
+#ifdef CONFIG_MTD_NAND_ATMEL_ECC_HW_HSIAO
+unsigned int Hsiao2Hamming(unsigned int input)
+{
+	unsigned int output = 0;
+
+	output |= ((input & (1 << 2))  << 21);
+	output |= ((input & (1 << 14)) << 8);
+	output |= ((input & (1 << 1))  << 20);
+	output |= ((input & (1 << 13)) << 7);
+	output |= ((input & (1 << 0))  << 19);
+	output |= ((input & (1 << 12)) << 6);
+	output |= ((input & (1 << 7))  << 8);
+	output |= ((input & (1 << 19)) >> 5);
+	output |= ((input & (1 << 6))  << 7);
+	output |= ((input & (1 << 18)) >> 6);
+	output |= ((input & (1 << 5))  << 6);
+	output |= ((input & (1 << 17)) >> 7);
+	output |= ((input & (1 << 4))  << 5);
+	output |= ((input & (1 << 16)) >> 8);
+	output |= ((input & (1 << 11)) >> 4);
+	output |= ((input & (1 << 23)) >> 17);
+	output |= ((input & (1 << 10)) >> 5);
+	output |= ((input & (1 << 22)) >> 18);
+	output |= ((input & (1 << 9))  >> 6);
+	output |= ((input & (1 << 21)) >> 19);
+	output |= ((input & (1 << 8))  >> 7);
+	output |= ((input & (1 << 20)) >> 20);
+	output ^= 0xFFFFFF;
+
+	return output;
+}
+
 /*
  * Calculate HW ECC
  *
@@ -224,6 +307,23 @@ static int atmel_nand_read_oob_512(struct mtd_info *mtd,
  * dat:        raw data (unused)
  * ecc_code:   buffer for ECC
  */
+static int atmel_nand_calculate(struct mtd_info *mtd,
+		const u_char *dat, unsigned char *ecc_code)
+{
+	struct nand_chip *nand_chip = mtd->priv;
+	struct atmel_nand_host *host = nand_chip->priv;
+	uint32_t hamming;
+
+	hamming = Hsiao2Hamming(ecc_readl(host->ecc, PR0));
+
+	ecc_writel(host->ecc, CR, 1);
+	ecc_code[0] = hamming & 0xFF;
+	ecc_code[1] = (hamming >> 8) & 0xFF;
+	ecc_code[2] = (hamming >> 16) & 0xFF;
+
+	return 0;
+}
+#else
 static int atmel_nand_calculate(struct mtd_info *mtd,
 		const u_char *dat, unsigned char *ecc_code)
 {
@@ -389,6 +489,7 @@ static int atmel_nand_correct(struct mtd_info *mtd, u_char *dat,
 	dev_dbg(host->dev, "atmel_nand : error corrected\n");
 	return 1;
 }
+#endif /* CONFIG_MTD_NAND_ATMEL_ECC_HW_HSIAO */
 
 /*
  * Enable HW ECC : unused on most chips
@@ -475,14 +576,22 @@ static int __init atmel_nand_probe(struct platform_device *pdev)
 		host->ecc = (void __force __iomem *) (AT91_VA_BASE_SYS - AT91_BASE_SYS);
 		host->ecc += regs->start;
 
-		nand_chip->ecc.mode = NAND_ECC_HW_SYNDROME;
 		nand_chip->ecc.calculate = atmel_nand_calculate;
-		nand_chip->ecc.correct = atmel_nand_correct;
 		nand_chip->ecc.hwctl = atmel_nand_hwctl;
+#ifdef CONFIG_MTD_NAND_ATMEL_ECC_HW_HSIAO
+		nand_chip->ecc.mode = NAND_ECC_HW;
+		nand_chip->ecc.correct = nand_correct_data;
+		nand_chip->ecc.bytes = 3;
+		nand_chip->ecc.prepad = 0;
+		nand_chip->ecc.postpad = 0;
+#else
+		nand_chip->ecc.mode = NAND_ECC_HW_SYNDROME;
+		nand_chip->ecc.correct = atmel_nand_correct;
 		nand_chip->ecc.read_page = atmel_nand_read_page;
 		nand_chip->ecc.bytes = 4;
 		nand_chip->ecc.prepad = 0;
 		nand_chip->ecc.postpad = 0;
+#endif
 	}
 
 	nand_chip->chip_delay = 20;		/* 20us command delay time */
@@ -551,6 +660,39 @@ static int __init atmel_nand_probe(struct platform_device *pdev)
 			break;
 		}
 	}
+
+#ifdef CONFIG_MTD_NAND_ATMEL_ECC_HW_HSIAO
+	if (nand_chip->ecc.mode == NAND_ECC_HW) {
+		nand_chip->ecc.size = 256;
+		switch (mtd->writesize) {
+		case 512:
+			nand_chip->ecc.layout = &nand_oob_16;
+			ecc_writel(host->ecc, MR,
+				ATMEL_ECC_PAGESIZE_528 | ATMEL_ECC_PER_256);
+			break;
+		case 2048:
+			nand_chip->ecc.layout = &nand_oob_64;
+			ecc_writel(host->ecc, MR,
+				ATMEL_ECC_PAGESIZE_2112 | ATMEL_ECC_PER_256);
+			break;
+		case 4096:
+			nand_chip->ecc.layout = &nand_oob_128;
+			ecc_writel(host->ecc, MR,
+				ATMEL_ECC_PAGESIZE_4224 | ATMEL_ECC_PER_256);
+			break;
+		default:
+			nand_chip->ecc.mode = NAND_ECC_SOFT;
+			nand_chip->ecc.calculate = NULL;
+			nand_chip->ecc.correct = NULL;
+			nand_chip->ecc.hwctl = NULL;
+			nand_chip->ecc.read_page = NULL;
+			nand_chip->ecc.postpad = 0;
+			nand_chip->ecc.prepad = 0;
+			nand_chip->ecc.bytes = 0;
+			break;
+		}
+	}
+#endif
 
 	printk(KERN_INFO "AT91 NAND: %i-bit, %s ECC\n",
 		(nand_chip->options & NAND_BUSWIDTH_16) ? 16 : 8,

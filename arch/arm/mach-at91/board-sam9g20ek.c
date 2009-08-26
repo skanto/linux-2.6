@@ -37,6 +37,8 @@
 
 #include <mach/board.h>
 #include <mach/gpio.h>
+#include <linux/gpio_keys.h>
+#include <linux/input.h>
 #include <mach/at91sam9_smc.h>
 
 #include "sam9_smc.h"
@@ -86,6 +88,30 @@ static struct at91_udc_data __initdata ek_udc_data = {
 
 
 /*
+ * Audio
+ */
+#if defined(CONFIG_SND_AT91_SOC_SAM9G20_WM8731) || defined(CONFIG_SND_AT91_SOC_SAM9G20_WM8731_MODULE)
+static void __init wm8731_set_clk(void)
+{
+	struct clk *pck0;
+	struct clk *pllb;
+
+	pck0 = clk_get(NULL, "pck0");
+	pllb = clk_get(NULL, "pllb");
+
+	/* WM8731 MCK Clock */
+	at91_set_B_periph(AT91_PIN_PC1, 0);	/* PCK0 */
+
+	clk_set_parent(pck0, pllb);
+	clk_set_rate(pck0, 12000000);
+	clk_enable(pck0);
+}
+#else
+static void __init wm8731_set_clk(void) {}
+#endif
+
+
+/*
  * SPI devices.
  */
 static struct spi_board_info ek_spi_devices[] = {
@@ -124,7 +150,7 @@ static struct mtd_partition __initdata ek_nand_partition[] = {
 	{
 		.name   = "Bootstrap",
 		.offset = 0,
-		.size   = 4 * SZ_1M,
+		.size   = SZ_4M,
 	},
 	{
 		.name	= "Partition 1",
@@ -218,6 +244,54 @@ static struct gpio_led ek_leds[] = {
 	}
 };
 
+/*
+ * GPIO Buttons
+ */
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+static struct gpio_keys_button ek_buttons[] = {
+	{
+		.gpio		= AT91_PIN_PA30,
+		.code		= BTN_3,
+		.desc		= "Button 3",
+		.active_low	= 1,
+		.wakeup		= 1,
+	},
+	{
+		.gpio		= AT91_PIN_PA31,
+		.code		= BTN_4,
+		.desc		= "Button 4",
+		.active_low	= 1,
+		.wakeup		= 1,
+	}
+};
+
+static struct gpio_keys_platform_data ek_button_data = {
+	.buttons	= ek_buttons,
+	.nbuttons	= ARRAY_SIZE(ek_buttons),
+};
+
+static struct platform_device ek_button_device = {
+	.name		= "gpio-keys",
+	.id		= -1,
+	.num_resources	= 0,
+	.dev		= {
+		.platform_data	= &ek_button_data,
+	}
+};
+
+static void __init ek_add_device_buttons(void)
+{
+	at91_set_gpio_input(AT91_PIN_PA30, 1);	/* btn3 */
+	at91_set_deglitch(AT91_PIN_PA30, 1);
+	at91_set_gpio_input(AT91_PIN_PA31, 1);	/* btn4 */
+	at91_set_deglitch(AT91_PIN_PA31, 1);
+
+	platform_device_register(&ek_button_device);
+}
+#else
+static void __init ek_add_device_buttons(void) {}
+#endif
+
 static void __init ek_board_init(void)
 {
 	/* Serial */
@@ -235,9 +309,16 @@ static void __init ek_board_init(void)
 	/* MMC */
 	at91_add_device_mmc(0, &ek_mmc_data);
 	/* I2C */
+	/* set clock for the wolfson */
+	wm8731_set_clk();
+	/* SSC */
+	at91_add_device_ssc(AT91SAM9260_ID_SSC, ATMEL_SSC_TX);
+	/* I2C */
 	at91_add_device_i2c(NULL, 0);
 	/* LEDs */
 	at91_gpio_leds(ek_leds, ARRAY_SIZE(ek_leds));
+	/* Push Buttons */
+	ek_add_device_buttons();
 }
 
 MACHINE_START(AT91SAM9G20EK, "Atmel AT91SAM9G20-EK")

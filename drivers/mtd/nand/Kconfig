@@ -310,6 +310,20 @@ config MTD_NAND_ATMEL_ECC_HW
 
 	  If unsure, say Y
 
+config MTD_NAND_ATMEL_ECC_HW_HSIAO
+	bool "Hardware ECC HSIAO Code"
+	depends on ARCH_AT91SAM9G20
+	help
+	  Use hardware ECC(HSIAO Code) instead of software ECC when the 
+	  chip supports it.
+
+	  The hardware ECC controller is capable of single bit error
+	  correction and 2-bit random detection per 256 bytes.
+
+	  NB : hardware and software ECC schemes are compatible.
+
+	  If unsure, say Y
+
 config MTD_NAND_ATMEL_ECC_SOFT
 	bool "Software ECC"
 	help
