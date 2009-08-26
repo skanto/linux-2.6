@@ -29,10 +29,10 @@
 #include <linux/completion.h>
 
 #include <asm/uaccess.h>
+
 #include <mach/at91_rtc.h>
 
 
-#define AT91_RTC_FREQ		1
 #define AT91_RTC_EPOCH		1900UL	/* just like arch/arm/common/rtctime.c */
 
 static DECLARE_COMPLETION(at91_rtc_updated);
@@ -228,8 +228,6 @@ static int at91_rtc_proc(struct device *dev, struct seq_file *seq)
 			(imr & AT91_RTC_ACKUPD) ? "yes" : "no");
 	seq_printf(seq, "periodic_IRQ\t: %s\n",
 			(imr & AT91_RTC_SECEV) ? "yes" : "no");
-	seq_printf(seq, "periodic_freq\t: %ld\n",
-			(unsigned long) AT91_RTC_FREQ);
 
 	return 0;
 }
@@ -298,12 +296,6 @@ static int __init at91_rtc_probe(struct platform_device *pdev)
 				AT91_ID_SYS);
 		return ret;
 	}
-
-	/* cpu init code should really have flagged this device as
-	 * being wake-capable; if it didn't, do that here.
-	 */
-	if (!device_can_wakeup(&pdev->dev))
-		device_init_wakeup(&pdev->dev, 1);
 
 	rtc = rtc_device_register(pdev->name, &pdev->dev,
 				&at91_rtc_ops, THIS_MODULE);
