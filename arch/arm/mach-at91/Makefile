@@ -66,6 +66,9 @@ obj-$(CONFIG_MACH_AT91CAP9ADK)	+= board-cap9adk.o
 # AT91X40 board-specific support
 obj-$(CONFIG_MACH_AT91EB01)	+= board-eb01.o
 
+# MRFSA board-specific support
+obj-$(CONFIG_MACH_MRFSA)	+= board-mrfsa.o
+
 # Drivers
 obj-y				+= leds.o
 obj-$(CONFIG_FB_S1D13XXX)	+= ics1523.o

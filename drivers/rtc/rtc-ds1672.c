@@ -30,7 +30,8 @@ I2C_CLIENT_INSMOD;
 #define DS1672_REG_CONTROL_EOSC	0x80
 
 /* Prototypes */
-static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind);
+static int ds1672_probe(struct i2c_client *client, const struct i2c_device_id *id);
+/*static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind);*/
 
 /*
  * In the routines that deal directly with the ds1672 hardware, we use
@@ -162,12 +163,7 @@ static const struct rtc_class_ops ds1672_rtc_ops = {
 	.set_mmss	= ds1672_rtc_set_mmss,
 };
 
-static int ds1672_attach(struct i2c_adapter *adapter)
-{
-	return i2c_probe(adapter, &addr_data, ds1672_probe);
-}
-
-static int ds1672_detach(struct i2c_client *client)
+static int __devexit ds1672_remove(struct i2c_client *client)
 {
 	int err;
 	struct rtc_device *rtc = i2c_get_clientdata(client);
@@ -183,53 +179,45 @@ static int ds1672_detach(struct i2c_client *client)
 	return 0;
 }
 
+static const struct i2c_device_id ds1672_ids[] = {
+	{ "ds1672" },
+	{ /* END OF LIST */ }
+};
+MODULE_DEVICE_TABLE(i2c, ds1672_ids);
+
 static struct i2c_driver ds1672_driver = {
 	.driver		= {
 		.name	= "ds1672",
+		.owner	= THIS_MODULE,
 	},
-	.id		= I2C_DRIVERID_DS1672,
-	.attach_adapter = &ds1672_attach,
-	.detach_client	= &ds1672_detach,
+	.probe		= ds1672_probe,
+	.remove		= __devexit_p(ds1672_remove),
+	.id_table	= ds1672_ids,
 };
 
-static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind)
+static int ds1672_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	int err = 0;
 	u8 control;
-	struct i2c_client *client;
 	struct rtc_device *rtc;
 
-	dev_dbg(&adapter->dev, "%s\n", __func__);
+	dev_dbg(&client->adapter->dev, "%s\n", __func__);
 
-	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C)) {
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		err = -ENODEV;
 		goto exit;
 	}
 
-	if (!(client = kzalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
-		err = -ENOMEM;
-		goto exit;
-	}
-
 	/* I2C client */
-	client->addr = address;
-	client->driver = &ds1672_driver;
-	client->adapter	= adapter;
-
-	strlcpy(client->name, ds1672_driver.driver.name, I2C_NAME_SIZE);
-
-	/* Inform the i2c layer */
-	if ((err = i2c_attach_client(client)))
-		goto exit_kfree;
-
 	dev_info(&client->dev, "chip found, driver version " DRV_VERSION "\n");
 
+	/* register RTC device */
 	rtc = rtc_device_register(ds1672_driver.driver.name, &client->dev,
 				&ds1672_rtc_ops, THIS_MODULE);
 
 	if (IS_ERR(rtc)) {
 		err = PTR_ERR(rtc);
-		goto exit_detach;
+		goto exit;
 	}
 
 	i2c_set_clientdata(client, rtc);
@@ -252,12 +240,6 @@ static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind)
 
 exit_devreg:
 	rtc_device_unregister(rtc);
-
-exit_detach:
-	i2c_detach_client(client);
-
-exit_kfree:
-	kfree(client);
 
 exit:
 	return err;

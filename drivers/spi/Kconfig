@@ -252,6 +252,11 @@ config SPI_TLE62X0
 	  sysfs interface, with each line presented as a kind of GPIO
 	  exposing both switch control and diagnostic feedback.
 
+config SPI_KS8995
+	tristate "Micrel/Kendin KS8995 Ethernet switch"
+	depends on SPI
+
+
 #
 # Add new SPI protocol masters in alphabetical order above this line
 #
