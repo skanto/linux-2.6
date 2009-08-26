@@ -439,6 +439,13 @@ config MACH_AT91SAM9M10G45EK
 
 endchoice
 
+config MACH_MRFSA
+	bool "Embedtronics MRFSA Evaluation Kit"
+	depends on ARCH_AT91SAM9G20
+	help
+	  Select this if you are using Embedtronics's MRFSA Evaluation Kit
+	  <http://www.embedtronics.fi/products/mrfsa/>
+
 endif
 
 # ----------------------------------------------------------
@@ -493,7 +500,7 @@ comment "AT91 Board Options"
 
 config MTD_AT91_DATAFLASH_CARD
 	bool "Enable DataFlash Card support"
-	depends on (ARCH_AT91RM9200DK || MACH_AT91RM9200EK || MACH_AT91SAM9260EK || MACH_AT91SAM9261EK || MACH_AT91SAM9G10EK || MACH_AT91SAM9263EK || MACH_AT91SAM9G20EK || MACH_ECBAT91 || MACH_SAM9_L9260 || MACH_AT91CAP9ADK || MACH_AT572D940HFEB || MACH_TOTEMNOVA || MACH_NEOCORE926)
+	depends on (ARCH_AT91RM9200DK || MACH_AT91RM9200EK || MACH_AT91SAM9260EK || MACH_AT91SAM9261EK || MACH_AT91SAM9G10EK || MACH_AT91SAM9263EK || MACH_AT91SAM9G20EK || MACH_ECBAT91 || MACH_SAM9_L9260 || MACH_AT91CAP9ADK || MACH_AT572D940HFEB || MACH_TOTEMNOVA || MACH_NEOCORE926 || MACH_MRFSA)
 	help
 	  Enable support for the DataFlash card.
 
