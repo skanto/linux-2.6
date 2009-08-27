@@ -282,10 +282,45 @@ static struct at91_mmc_data __initdata mrfsa_mmc_data = {
  */
 static struct gpio_led mrfsa_leds[] = {
 	{	/* heartbeat led, green, userled1 to be defined */
-		.name			= "STATLED",
+		.name			= "STATUS",
 		.gpio			= MRFSA_PIN_STAT_LED,
 		.active_low		= 0,
 		.default_trigger	= "heartbeat",
+	},
+	{	/* GSM led */
+		.name			= "GSM",
+		.gpio			= MRFSA_PIN_GSM_LED,
+		.active_low		= 0,
+	},
+	{	/* ZigBee led */
+		.name			= "ZIGBEE",
+		.gpio			= MRFSA_PIN_ZB_LED,
+		.active_low		= 0,
+	},
+	{	/* SER1 led */
+		.name			= "SER1",
+		.gpio			= MRFSA_PIN_SLED1,
+		.active_low		= 0,
+	},
+	{	/* SER2 led */
+		.name			= "SER2",
+		.gpio			= MRFSA_PIN_SLED2,
+		.active_low		= 0,
+	},
+	{	/* SER3 led */
+		.name			= "SER3",
+		.gpio			= MRFSA_PIN_SLED3,
+		.active_low		= 0,
+	},
+	{	/* Input 1 led */
+		.name			= "IN1",
+		.gpio			= MRFSA_PIN_ILED1,
+		.active_low		= 0,
+	},
+	{	/* Input 1 led */
+		.name			= "IN2",
+		.gpio			= MRFSA_PIN_ILED2,
+		.active_low		= 0,
 	},
 };
 
