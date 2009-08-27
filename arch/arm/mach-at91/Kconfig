@@ -441,6 +441,8 @@ endchoice
 
 config MACH_MRFSA
 	bool "Embedtronics MRFSA Evaluation Kit"
+	select GENERIC_GPIO
+	select ARCH_REQUIRE_GPIOLIB
 	depends on ARCH_AT91SAM9G20
 	help
 	  Select this if you are using Embedtronics's MRFSA Evaluation Kit

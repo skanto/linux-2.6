@@ -187,6 +187,27 @@
 #define	AT91_PIN_PE30	(PIN_BASE + 0x80 + 30)
 #define	AT91_PIN_PE31	(PIN_BASE + 0x80 + 31)
 
+#ifdef	CONFIG_MACH_MRFSA
+#define	MRFSA_PIN_BASE		(PIN_BASE + 0xa0)
+
+#define	MRFSA_PIN_STAT_LED	(MRFSA_PIN_BASE + 0)
+#define	MRFSA_PIN_GSM_LED	(MRFSA_PIN_BASE + 1)
+#define	MRFSA_PIN_ZB_LED	(MRFSA_PIN_BASE + 2)
+#define	MRFSA_PIN_SLED1		(MRFSA_PIN_BASE + 3)
+#define	MRFSA_PIN_SLED2		(MRFSA_PIN_BASE + 4)
+#define	MRFSA_PIN_SLED3		(MRFSA_PIN_BASE + 5)
+#define	MRFSA_PIN_ILED1		(MRFSA_PIN_BASE + 6)
+#define	MRFSA_PIN_ILED2		(MRFSA_PIN_BASE + 7)
+#define	MRFSA_PIN_ZB_VREG	(MRFSA_PIN_BASE + 8)
+#define	MRFSA_PIN_ZB_RESET	(MRFSA_PIN_BASE + 9)
+#define	MRFSA_PIN_GSM_ONOFF	(MRFSA_PIN_BASE + 10)
+#define	MRFSA_PIN_GSM_RESET	(MRFSA_PIN_BASE + 11)
+#define	MRFSA_PIN_GPS_ON	(MRFSA_PIN_BASE + 12)
+#define	MRFSA_PIN_GPS_RESET	(MRFSA_PIN_BASE + 13)
+#define	MRFSA_PIN_DO1		(MRFSA_PIN_BASE + 14)
+#define	MRFSA_PIN_DO2		(MRFSA_PIN_BASE + 15)
+#endif	/* CONFIG_MACH_MRFSA */
+
 #ifndef __ASSEMBLY__
 /* setup setup routines, called from board init or driver probe() */
 extern int __init_or_module at91_set_GPIO_periph(unsigned pin, int use_pullup);
@@ -214,6 +235,9 @@ extern void at91_gpio_resume(void);
 
 #include <asm/errno.h>
 #include <asm-generic/gpio.h>		/* cansleep wrappers */
+
+//extern int gpio_direction_input(unsigned gpio);
+//extern int gpio_direction_output(unsigned gpio, int value);
 
 #define gpio_get_value	__gpio_get_value
 #define gpio_set_value	__gpio_set_value

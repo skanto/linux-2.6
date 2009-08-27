@@ -237,6 +237,71 @@ int __init_or_module at91_set_multi_drive(unsigned pin, int is_on)
 }
 EXPORT_SYMBOL(at91_set_multi_drive);
 
+/*--------------------------------------------------------------------------*/
+
+/* new-style GPIO calls; these expect at91_set_GPIO_periph to have been
+ * called, and maybe at91_set_multi_drive() for putout pins.
+ */
+#ifdef	CONFIG_GPIOLIB
+#define	gpio_direction_input	at91_set_gpio_direction_input
+#define	gpio_direction_output	at91_set_gpio_direction_output
+#endif	/* CONFIG_GPIOLIB */
+
+int gpio_direction_input(unsigned pin)
+{
+	void __iomem	*pio = pin_to_controller(pin);
+	unsigned	mask = pin_to_mask(pin);
+
+	if (!pio || !(__raw_readl(pio + PIO_PSR) & mask))
+		return -EINVAL;
+	__raw_writel(mask, pio + PIO_ODR);
+	return 0;
+}
+EXPORT_SYMBOL(gpio_direction_input);
+
+#ifdef	CONFIG_GPIOLIB
+static int at91_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
+{
+	void __iomem	*pio = pin_to_controller(chip->base);
+	unsigned	mask = 1 << (offset % 32);
+
+	if (!pio || !(__raw_readl(pio + PIO_PSR) & mask))
+		return -EINVAL;
+	__raw_writel(mask, pio + PIO_ODR);
+	return 0;
+}
+#endif	/* CONFIG_GPIOLIB */
+
+int gpio_direction_output(unsigned pin, int value)
+{
+	void __iomem	*pio = pin_to_controller(pin);
+	unsigned	mask = pin_to_mask(pin);
+
+	if (!pio || !(__raw_readl(pio + PIO_PSR) & mask))
+		return -EINVAL;
+	__raw_writel(mask, pio + (value ? PIO_SODR : PIO_CODR));
+	__raw_writel(mask, pio + PIO_OER);
+	return 0;
+}
+EXPORT_SYMBOL(gpio_direction_output);
+
+#ifdef	CONFIG_GPIOLIB
+static int at91_gpio_direction_output(struct gpio_chip *chip, unsigned offset, int value)
+{
+	void __iomem	*pio = pin_to_controller(chip->base);
+	unsigned	mask = 1 << (offset % 32);
+
+	if (!pio || !(__raw_readl(pio + PIO_PSR) & mask))
+		return -EINVAL;
+	__raw_writel(mask, pio + (value ? PIO_SODR : PIO_CODR));
+	__raw_writel(mask, pio + PIO_OER);
+	return 0;
+}
+#endif	/* CONFIG_GPIOLIB */
+
+
+/*--------------------------------------------------------------------------*/
+
 /*
  * assuming the pin is muxed as a gpio output, set its value.
  */
@@ -252,6 +317,15 @@ int at91_set_gpio_value(unsigned pin, int value)
 }
 EXPORT_SYMBOL(at91_set_gpio_value);
 
+#ifdef	CONFIG_GPIOLIB
+static void at91_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
+{
+	void __iomem	*pio = pin_to_controller(chip->base);
+	unsigned	mask = 1 << (offset % 32);
+	if (pio)
+		__raw_writel(mask, pio + (value ? PIO_SODR : PIO_CODR));
+}
+#endif	/* CONFIG_GPIOLIB */
 
 /*
  * read the pin's value (works even if it's not muxed as a gpio).
@@ -268,6 +342,21 @@ int at91_get_gpio_value(unsigned pin)
 	return (pdsr & mask) != 0;
 }
 EXPORT_SYMBOL(at91_get_gpio_value);
+
+#ifdef	CONFIG_GPIOLIB
+static int at91_gpio_get(struct gpio_chip *chip, unsigned offset)
+{
+	void __iomem	*pio = pin_to_controller(chip->base);
+	unsigned	mask = 1 << (offset % 32);
+	u32		pdsr;
+
+	if (!pio)
+		return -EINVAL;
+	pdsr = __raw_readl(pio + PIO_PDSR);
+	return (pdsr & mask) != 0;
+}
+#endif	/* CONFIG_GPIOLIB */
+
 
 /*--------------------------------------------------------------------------*/
 
@@ -630,6 +719,52 @@ static void at91_gpiolib_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 /*
  * Called from the processor-specific init to enable GPIO pin support.
  */
+#ifdef	CONFIG_GPIOLIB
+#ifdef	CONFIG_DEBUG_FS
+void at91_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
+{
+	unsigned	pin  = chip->base;
+	void __iomem	*pio = pin_to_controller(pin);
+	u32		pdsr, osr;
+	int i;
+
+	if (!pio)
+		return;
+
+	osr = __raw_readl(pio + PIO_OSR);
+	pdsr = __raw_readl(pio + PIO_PDSR);
+
+  	for (i = 0; i < chip->ngpio; i++)
+		seq_printf(s, "GPIO %s%d: %s %s\n", chip->label, i,
+			   (pdsr & (1 << i)) ? "set" : "clear",
+			   (osr & (1 << i)) ? "out" : "in");
+}
+#else
+#define	at91_gpio_dbg_show	NULL
+#endif
+
+#define	at91_gpio_BANK(name, base_gpio)					\
+	{								\
+		.label			= name,				\
+		.direction_input	= at91_gpio_direction_input,	\
+		.direction_output	= at91_gpio_direction_output,	\
+		.get			= at91_gpio_get,		\
+		.set			= at91_gpio_set,		\
+		.dbg_show		= at91_gpio_dbg_show,		\
+		.base			= base_gpio,			\
+		.ngpio			= 32,				\
+	}
+
+static struct gpio_chip at91_gpio_banks[6] = {
+	at91_gpio_BANK("PIOA", PIN_BASE + 0 * 32),
+	at91_gpio_BANK("PIOB", PIN_BASE + 1 * 32),
+	at91_gpio_BANK("PIOC", PIN_BASE + 2 * 32),
+	at91_gpio_BANK("PIOD", PIN_BASE + 3 * 32),
+	at91_gpio_BANK("PIOE", PIN_BASE + 4 * 32),
+	at91_gpio_BANK("PIOF", PIN_BASE + 5 * 32),
+};
+#endif	/* CONFIG_GPIOLIB */
+
 void __init at91_gpio_init(struct at91_gpio_bank *data, int nr_banks)
 {
 	unsigned		i;
