@@ -42,7 +42,6 @@
 
 #include <mach/board.h>
 #include <mach/gpio.h>
-#include <linux/gpio_keys.h>
 #include <linux/input.h>
 #include <mach/at91sam9_smc.h>
 
@@ -67,26 +66,45 @@
 #define	TTYS_GPS	5
 #define	TTYS_GSM_DBG	6
 
+#define	MRFSA_PIN_GSM_PWRMON	AT91_PIN_PC6
+
+#include <linux/delay.h>
+
 static int mrfsa_uart_open(struct uart_port *port)
 {
-	printk(KERN_INFO "%s: line=%u\n", __func__, port->line);
 	switch (port->line) {
 	case TTYS_GSM:
 	case TTYS_GSM_DBG:
+		if (!at91_get_gpio_value(MRFSA_PIN_GSM_PWRMON)) {
+			/* need to power on gsm */
+			gpio_set_value(MRFSA_PIN_GSM_ONOFF, 1);
+			msleep(1100);
+			gpio_set_value(MRFSA_PIN_GSM_ONOFF, 0);
+			/* @@@ configure pin directions @@@ */
+			if (!at91_get_gpio_value(MRFSA_PIN_GSM_PWRMON)) {
+				/* gsm did not power on? */
+			}
+		}
+		break;
 	case TTYS_GPS:
-	  break;
+		gpio_set_value(MRFSA_PIN_GPS_ON, 0);
+		gpio_set_value(MRFSA_PIN_GPS_RESET, 1);
+		break;
 	}
 	return 0;
 }
 
 static void mrfsa_uart_close(struct uart_port *port)
 {
-	printk(KERN_INFO "%s: line=%u\n", __func__, port->line);
 	switch (port->line) {
 	case TTYS_GSM:
 	case TTYS_GSM_DBG:
+		/* @@@ power off if other port is not in use @@@ */
+		break;
 	case TTYS_GPS:
-	  break;
+		gpio_set_value(MRFSA_PIN_GPS_ON, 1);
+		gpio_set_value(MRFSA_PIN_GPS_RESET, 1);
+		break;
 	}
 }
 
@@ -156,43 +174,51 @@ static struct at91_udc_data __initdata mrfsa_udc_data = {
 /*
  * SPI devices.
  */
+#include <linux/spi/mc74x595.h>
+
+static const struct mc74x595_platform_data mrfsa_mc74x595_pdata = {
+	.nchips	= 2,
+	.inversion = {0xff},
+	.base = MRFSA_PIN_BASE,
+};
 static struct spi_board_info mrfsa_spi_devices[] = {
 	{	/* DataFlash chip */
 		.modalias	= "mtd_dataflash",
 		.chip_select	= 0,
 		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
+		.controller_data= (void*)AT91_PIN_PA3,
 	},
 	{	/* DataFlash card */
 		.modalias	= "mtd_dataflash",
-		.chip_select	= 1,
+		.chip_select	= 4,
 		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
+		.controller_data= (void*)AT91_PIN_PC11,
 	},
 	{	/* KS8995MA switch */
 		.modalias	= "spi-ks8995",
-		.chip_select	= 2,
+		.chip_select	= 1,
 		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PB30,
 	},
-#if 0
 	{	/* ZB */
 		.modalias	= "spi-cc2420",
-		.chip_select	= 3,
+		.chip_select	= 2,
 		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PB31,
 	},
-#endif
 	{	/* GPIO */
-		.modalias	= "spi-gpio",
+		.modalias	= "mc74x595",
 		.chip_select	= 3,
 		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PB17,
+		.platform_data	= (const void *)&mrfsa_mc74x595_pdata,
 	},
-	{	/* extension */
+	{	/* extension GPIO */
 		.modalias	= "spi-gpio",
 		.chip_select	= 0,
 		.max_speed_hz	= 10 * 1000 * 1000,
@@ -255,19 +281,12 @@ static struct at91_mmc_data __initdata mrfsa_mmc_data = {
  * LEDs
  */
 static struct gpio_led mrfsa_leds[] = {
-#if 0
-	{	/* "bottom" led, green, userled1 to be defined */
-		.name			= "ds5",
-		.gpio			= AT91_PIN_PA6,
-		.active_low		= 1,
-		.default_trigger	= "none",
-	},
-	{	/* "power" led, yellow */
-		.name			= "ds1",
-		.gpio			= AT91_PIN_PA9,
+	{	/* heartbeat led, green, userled1 to be defined */
+		.name			= "STATLED",
+		.gpio			= MRFSA_PIN_STAT_LED,
+		.active_low		= 0,
 		.default_trigger	= "heartbeat",
-	}
-#endif
+	},
 };
 
 /*

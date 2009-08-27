@@ -160,4 +160,11 @@ config GPIO_MCP23S08
 	  SPI driver for Microchip MCP23S08 I/O expander.  This provides
 	  a GPIO interface supporting inputs and outputs.
 
+config GPIO_MC74X595
+	tristate "MC74x595 compatible shift register"
+	depends on SPI_MASTER
+	help
+	  SPI driver for MC74x595 compatible shift register.  This provides
+	  a GPIO interface supporting outputs.
+
 endif
