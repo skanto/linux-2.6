@@ -179,6 +179,7 @@ static struct at91_udc_data __initdata mrfsa_udc_data = {
 static const struct mc74x595_platform_data mrfsa_mc74x595_pdata = {
 	.nchips	= 2,
 	.inversion = {0xff},
+	.initial = {0x00, 0x30},
 	.base = MRFSA_PIN_BASE,
 };
 static struct spi_board_info mrfsa_spi_devices[] = {

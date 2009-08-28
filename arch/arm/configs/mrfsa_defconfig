@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.27
-# Fri Aug 28 01:06:59 2009
+# Fri Aug 28 03:24:19 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -760,7 +760,7 @@ CONFIG_SPI_ATMEL=y
 CONFIG_SPI_KS8995=y
 CONFIG_ARCH_REQUIRE_GPIOLIB=y
 CONFIG_GPIOLIB=y
-# CONFIG_GPIO_SYSFS is not set
+CONFIG_GPIO_SYSFS=y
 
 #
 # I2C GPIO expanders:
