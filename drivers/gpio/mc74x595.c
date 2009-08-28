@@ -131,94 +131,11 @@ static void mc74x595_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 
 /*----------------------------------------------------------------------*/
 
-#if 0
-static int mc74x595_probe_one(struct spi_device *spi, unsigned addr,
-		unsigned base, unsigned pullups)
-{
-	struct mc74x595_driver_data	*data = spi_get_drvdata(spi);
-	struct mc74x595			*mcp = data->mcp[addr];
-	int				status;
-	int				do_update = 0;
-
-	mutex_init(&mcp->lock);
-
-	mcp->spi = spi;
-	mcp->addr = 0x40 | (addr << 1);
-
-	mcp->chip.label = "mc74x595",
-
-	mcp->chip.direction_input = mc74x595_direction_input;
-	mcp->chip.get = mc74x595_get;
-	mcp->chip.direction_output = mc74x595_direction_output;
-	mcp->chip.set = mc74x595_set;
-	mcp->chip.dbg_show = mc74x595_dbg_show;
-
-	mcp->chip.base = base;
-	mcp->chip.ngpio = 8;
-	mcp->chip.can_sleep = 1;
-	mcp->chip.dev = &spi->dev;
-	mcp->chip.owner = THIS_MODULE;
-
-	/* verify MCP_IOCON.SEQOP = 0, so sequential reads work,
-	 * and MCP_IOCON.HAEN = 1, so we work with all chips.
-	 */
-	status = mc74x595_read(mcp, MCP_IOCON);
-	if (status < 0)
-		goto fail;
-	if ((status & IOCON_SEQOP) || !(status & IOCON_HAEN)) {
-		status &= ~IOCON_SEQOP;
-		status |= IOCON_HAEN;
-		status = mc74x595_write(mcp, MCP_IOCON, (u8) status);
-		if (status < 0)
-			goto fail;
-	}
-
-	/* configure ~100K pullups */
-	status = mc74x595_write(mcp, MCP_GPPU, pullups);
-	if (status < 0)
-		goto fail;
-
-	status = mc74x595_read_regs(mcp, 0, mcp->cache, sizeof mcp->cache);
-	if (status < 0)
-		goto fail;
-
-	/* disable inverter on input */
-	if (mcp->cache[MCP_IPOL] != 0) {
-		mcp->cache[MCP_IPOL] = 0;
-		do_update = 1;
-	}
-
-	/* disable irqs */
-	if (mcp->cache[MCP_GPINTEN] != 0) {
-		mcp->cache[MCP_GPINTEN] = 0;
-		do_update = 1;
-	}
-
-	if (do_update) {
-		u8 tx[4];
-
-		tx[0] = mcp->addr;
-		tx[1] = MCP_IPOL;
-		memcpy(&tx[2], &mcp->cache[MCP_IPOL], sizeof(tx) - 2);
-		status = spi_write_then_read(mcp->spi, tx, sizeof tx, NULL, 0);
-		if (status < 0)
-			goto fail;
-	}
-
-	status = gpiochip_add(&mcp->chip);
-fail:
-	if (status < 0)
-		dev_dbg(&spi->dev, "can't setup chip %d, --> %d\n",
-				addr, status);
-	return status;
-}
-#endif
-
 static int mc74x595_probe(struct spi_device *spi)
 {
 	struct mc74x595_platform_data	*pdata;
 	struct mc74x595			*mcp;
-	int				status;
+	int				status, c;
 	unsigned			base;
 
 	pdata = spi->dev.platform_data;
@@ -238,8 +155,10 @@ static int mc74x595_probe(struct spi_device *spi)
 
 	mcp->spi = spi;
 	mcp->nchips = pdata->nchips;
-	memcpy(mcp->cache, pdata->inversion, sizeof mcp->cache);
+	memcpy(mcp->cache, pdata->initial, sizeof mcp->cache);
 	memcpy(mcp->inversion, pdata->inversion, sizeof mcp->inversion);
+	for (c = 0; c < sizeof mcp->cache; c++)
+		mcp->cache[c] ^= mcp->inversion[c];
 
 	mcp->chip.label = "mc74x595";
 
