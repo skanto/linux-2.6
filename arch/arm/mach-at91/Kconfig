@@ -376,6 +376,15 @@ config MACH_AT91SAM9G20EK_2MMC
 	  with 2 SD/MMC Slots. This is the case for AT91SAM9G20-EK rev. C and
 	  onwards.
 
+config MACH_MRFSA
+	bool "Embedtronics MRFSA Evaluation Kit"
+	select GENERIC_GPIO
+	select ARCH_REQUIRE_GPIOLIB
+	depends on ARCH_AT91SAM9G20
+	help
+	  Select this if you are using Embedtronics's MRFSA Evaluation Kit
+	  <http://www.embedtronics.fi/products/mrfsa/>
+
 config MACH_USB_A9G20
 	bool "CALAO USB-A9G20"
 	depends on ARCH_AT91SAM9G20
@@ -438,15 +447,6 @@ config MACH_AT91SAM9M10G45EK
 	  <http://atmel.com/dyn/products/tools_card_v2.asp?tool_id=4735>
 
 endchoice
-
-config MACH_MRFSA
-	bool "Embedtronics MRFSA Evaluation Kit"
-	select GENERIC_GPIO
-	select ARCH_REQUIRE_GPIOLIB
-	depends on ARCH_AT91SAM9G20
-	help
-	  Select this if you are using Embedtronics's MRFSA Evaluation Kit
-	  <http://www.embedtronics.fi/products/mrfsa/>
 
 endif
 
