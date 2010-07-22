@@ -1,0 +1,173 @@
+From 5bbd21b7ecf92436fa4bf834c0ab42ccc7ef817d Mon Sep 17 00:00:00 2001
+From: Sami Kantoluoto <skanto@sbld.embedtronics.fi>
+Date: Fri, 28 Aug 2009 04:17:53 +0300
+Subject: [PATCH 6/6] Enabled sysfs/gpio and cleaned up the mc74x595 driver.
+
+---
+ arch/arm/configs/mrfsa_defconfig |    4 +-
+ arch/arm/mach-at91/board-mrfsa.c |    1 +
+ drivers/gpio/mc74x595.c          |   89 ++------------------------------------
+ include/linux/spi/mc74x595.h     |    1 +
+ 4 files changed, 8 insertions(+), 87 deletions(-)
+
+diff --git a/arch/arm/configs/mrfsa_defconfig b/arch/arm/configs/mrfsa_defconfig
+index 9343430..4594678 100644
+--- a/arch/arm/configs/mrfsa_defconfig
++++ b/arch/arm/configs/mrfsa_defconfig
+@@ -1,7 +1,7 @@
+ #
+ # Automatically generated make config: don't edit
+ # Linux kernel version: 2.6.27
+-# Fri Aug 28 01:06:59 2009
++# Fri Aug 28 03:24:19 2009
+ #
+ CONFIG_ARM=y
+ CONFIG_SYS_SUPPORTS_APM_EMULATION=y
+@@ -760,7 +760,7 @@ CONFIG_SPI_ATMEL=y
+ CONFIG_SPI_KS8995=y
+ CONFIG_ARCH_REQUIRE_GPIOLIB=y
+ CONFIG_GPIOLIB=y
+-# CONFIG_GPIO_SYSFS is not set
++CONFIG_GPIO_SYSFS=y
+ 
+ #
+ # I2C GPIO expanders:
+diff --git a/arch/arm/mach-at91/board-mrfsa.c b/arch/arm/mach-at91/board-mrfsa.c
+index ce53b31..60de9fc 100644
+--- a/arch/arm/mach-at91/board-mrfsa.c
++++ b/arch/arm/mach-at91/board-mrfsa.c
+@@ -179,6 +179,7 @@ static struct at91_udc_data __initdata mrfsa_udc_data = {
+ static const struct mc74x595_platform_data mrfsa_mc74x595_pdata = {
+ 	.nchips	= 2,
+ 	.inversion = {0xff},
++	.initial = {0x00, 0x30},
+ 	.base = MRFSA_PIN_BASE,
+ };
+ static struct spi_board_info mrfsa_spi_devices[] = {
+diff --git a/drivers/gpio/mc74x595.c b/drivers/gpio/mc74x595.c
+index fff1732..ea14ed7 100644
+--- a/drivers/gpio/mc74x595.c
++++ b/drivers/gpio/mc74x595.c
+@@ -131,94 +131,11 @@ static void mc74x595_dbg_show(struct seq_file *s, struct gpio_chip *chip)
+ 
+ /*----------------------------------------------------------------------*/
+ 
+-#if 0
+-static int mc74x595_probe_one(struct spi_device *spi, unsigned addr,
+-		unsigned base, unsigned pullups)
+-{
+-	struct mc74x595_driver_data	*data = spi_get_drvdata(spi);
+-	struct mc74x595			*mcp = data->mcp[addr];
+-	int				status;
+-	int				do_update = 0;
+-
+-	mutex_init(&mcp->lock);
+-
+-	mcp->spi = spi;
+-	mcp->addr = 0x40 | (addr << 1);
+-
+-	mcp->chip.label = "mc74x595",
+-
+-	mcp->chip.direction_input = mc74x595_direction_input;
+-	mcp->chip.get = mc74x595_get;
+-	mcp->chip.direction_output = mc74x595_direction_output;
+-	mcp->chip.set = mc74x595_set;
+-	mcp->chip.dbg_show = mc74x595_dbg_show;
+-
+-	mcp->chip.base = base;
+-	mcp->chip.ngpio = 8;
+-	mcp->chip.can_sleep = 1;
+-	mcp->chip.dev = &spi->dev;
+-	mcp->chip.owner = THIS_MODULE;
+-
+-	/* verify MCP_IOCON.SEQOP = 0, so sequential reads work,
+-	 * and MCP_IOCON.HAEN = 1, so we work with all chips.
+-	 */
+-	status = mc74x595_read(mcp, MCP_IOCON);
+-	if (status < 0)
+-		goto fail;
+-	if ((status & IOCON_SEQOP) || !(status & IOCON_HAEN)) {
+-		status &= ~IOCON_SEQOP;
+-		status |= IOCON_HAEN;
+-		status = mc74x595_write(mcp, MCP_IOCON, (u8) status);
+-		if (status < 0)
+-			goto fail;
+-	}
+-
+-	/* configure ~100K pullups */
+-	status = mc74x595_write(mcp, MCP_GPPU, pullups);
+-	if (status < 0)
+-		goto fail;
+-
+-	status = mc74x595_read_regs(mcp, 0, mcp->cache, sizeof mcp->cache);
+-	if (status < 0)
+-		goto fail;
+-
+-	/* disable inverter on input */
+-	if (mcp->cache[MCP_IPOL] != 0) {
+-		mcp->cache[MCP_IPOL] = 0;
+-		do_update = 1;
+-	}
+-
+-	/* disable irqs */
+-	if (mcp->cache[MCP_GPINTEN] != 0) {
+-		mcp->cache[MCP_GPINTEN] = 0;
+-		do_update = 1;
+-	}
+-
+-	if (do_update) {
+-		u8 tx[4];
+-
+-		tx[0] = mcp->addr;
+-		tx[1] = MCP_IPOL;
+-		memcpy(&tx[2], &mcp->cache[MCP_IPOL], sizeof(tx) - 2);
+-		status = spi_write_then_read(mcp->spi, tx, sizeof tx, NULL, 0);
+-		if (status < 0)
+-			goto fail;
+-	}
+-
+-	status = gpiochip_add(&mcp->chip);
+-fail:
+-	if (status < 0)
+-		dev_dbg(&spi->dev, "can't setup chip %d, --> %d\n",
+-				addr, status);
+-	return status;
+-}
+-#endif
+-
+ static int mc74x595_probe(struct spi_device *spi)
+ {
+ 	struct mc74x595_platform_data	*pdata;
+ 	struct mc74x595			*mcp;
+-	int				status;
++	int				status, c;
+ 	unsigned			base;
+ 
+ 	pdata = spi->dev.platform_data;
+@@ -238,8 +155,10 @@ static int mc74x595_probe(struct spi_device *spi)
+ 
+ 	mcp->spi = spi;
+ 	mcp->nchips = pdata->nchips;
+-	memcpy(mcp->cache, pdata->inversion, sizeof mcp->cache);
++	memcpy(mcp->cache, pdata->initial, sizeof mcp->cache);
+ 	memcpy(mcp->inversion, pdata->inversion, sizeof mcp->inversion);
++	for (c = 0; c < sizeof mcp->cache; c++)
++		mcp->cache[c] ^= mcp->inversion[c];
+ 
+ 	mcp->chip.label = "mc74x595";
+ 
+diff --git a/include/linux/spi/mc74x595.h b/include/linux/spi/mc74x595.h
+index 475ceb8..8e407ed 100644
+--- a/include/linux/spi/mc74x595.h
++++ b/include/linux/spi/mc74x595.h
+@@ -4,6 +4,7 @@
+ struct mc74x595_platform_data {
+ 	u8	nchips;			/* number of chips (1 - 8)	*/
+ 	u8	inversion[MC74X595_MAX_CHIPS];	/* output inversion bits*/
++	u8	initial[MC74X595_MAX_CHIPS];	/* initial state (logical) */
+ 
+ 	/* "base" is the number of the first GPIO.  Dynamic assignment is
+ 	 * not currently supported, and even if there are gaps in chip
+-- 
+1.7.0.4
+

@@ -1,0 +1,807 @@
+From 2a48bb1563f0e5d3ce2adbd40c63c9e4f56ea2ee Mon Sep 17 00:00:00 2001
+From: Sami Kantoluoto <skanto@sbld.embedtronics.fi>
+Date: Fri, 28 Aug 2009 02:17:36 +0300
+Subject: [PATCH 3/6] Preliminary led support.
+
+---
+ arch/arm/mach-at91/Kconfig             |    2 +
+ arch/arm/mach-at91/board-mrfsa.c       |   67 +++++---
+ arch/arm/mach-at91/gpio.c              |  106 +++++++++++
+ arch/arm/mach-at91/include/mach/gpio.h |   34 ++++
+ drivers/gpio/Kconfig                   |    7 +
+ drivers/gpio/Makefile                  |    1 +
+ drivers/gpio/mc74x595.c                |  310 ++++++++++++++++++++++++++++++++
+ drivers/spi/atmel_spi.c                |   11 +-
+ include/linux/spi/mc74x595.h           |   15 ++
+ 9 files changed, 526 insertions(+), 27 deletions(-)
+ create mode 100644 drivers/gpio/mc74x595.c
+ create mode 100644 include/linux/spi/mc74x595.h
+
+diff --git a/arch/arm/mach-at91/Kconfig b/arch/arm/mach-at91/Kconfig
+index 8b86c50..e263fec 100644
+--- a/arch/arm/mach-at91/Kconfig
++++ b/arch/arm/mach-at91/Kconfig
+@@ -301,6 +301,8 @@ config MACH_AT91SAM9G20EK
+ 
+ config MACH_MRFSA
+ 	bool "Embedtronics MRFSA Evaluation Kit"
++	select GENERIC_GPIO
++	select ARCH_REQUIRE_GPIOLIB
+ 	depends on ARCH_AT91SAM9G20
+ 	help
+ 	  Select this if you are using Embedtronics's MRFSA Evaluation Kit
+diff --git a/arch/arm/mach-at91/board-mrfsa.c b/arch/arm/mach-at91/board-mrfsa.c
+index 9b9c21a..b54cc36 100644
+--- a/arch/arm/mach-at91/board-mrfsa.c
++++ b/arch/arm/mach-at91/board-mrfsa.c
+@@ -42,7 +42,6 @@
+ 
+ #include <mach/board.h>
+ #include <mach/gpio.h>
+-#include <linux/gpio_keys.h>
+ #include <linux/input.h>
+ #include <mach/at91sam9_smc.h>
+ 
+@@ -67,26 +66,45 @@
+ #define	TTYS_GPS	5
+ #define	TTYS_GSM_DBG	6
+ 
++#define	MRFSA_PIN_GSM_PWRMON	AT91_PIN_PC6
++
++#include <linux/delay.h>
++
+ static int mrfsa_uart_open(struct uart_port *port)
+ {
+-	printk(KERN_INFO "%s: line=%u\n", __func__, port->line);
+ 	switch (port->line) {
+ 	case TTYS_GSM:
+ 	case TTYS_GSM_DBG:
++		if (!at91_get_gpio_value(MRFSA_PIN_GSM_PWRMON)) {
++			/* need to power on gsm */
++			gpio_set_value(MRFSA_PIN_GSM_ONOFF, 1);
++			msleep(1100);
++			gpio_set_value(MRFSA_PIN_GSM_ONOFF, 0);
++			/* @@@ configure pin directions @@@ */
++			if (!at91_get_gpio_value(MRFSA_PIN_GSM_PWRMON)) {
++				/* gsm did not power on? */
++			}
++		}
++		break;
+ 	case TTYS_GPS:
+-	  break;
++		gpio_set_value(MRFSA_PIN_GPS_ON, 0);
++		gpio_set_value(MRFSA_PIN_GPS_RESET, 1);
++		break;
+ 	}
+ 	return 0;
+ }
+ 
+ static void mrfsa_uart_close(struct uart_port *port)
+ {
+-	printk(KERN_INFO "%s: line=%u\n", __func__, port->line);
+ 	switch (port->line) {
+ 	case TTYS_GSM:
+ 	case TTYS_GSM_DBG:
++		/* @@@ power off if other port is not in use @@@ */
++		break;
+ 	case TTYS_GPS:
+-	  break;
++		gpio_set_value(MRFSA_PIN_GPS_ON, 1);
++		gpio_set_value(MRFSA_PIN_GPS_RESET, 1);
++		break;
+ 	}
+ }
+ 
+@@ -156,43 +174,51 @@ static struct at91_udc_data __initdata mrfsa_udc_data = {
+ /*
+  * SPI devices.
+  */
++#include <linux/spi/mc74x595.h>
++
++static const struct mc74x595_platform_data mrfsa_mc74x595_pdata = {
++	.nchips	= 2,
++	.inversion = {0xff},
++	.base = MRFSA_PIN_BASE,
++};
+ static struct spi_board_info mrfsa_spi_devices[] = {
+ 	{	/* DataFlash chip */
+ 		.modalias	= "mtd_dataflash",
+ 		.chip_select	= 0,
+ 		.max_speed_hz	= 15 * 1000 * 1000,
+ 		.bus_num	= 0,
++		.controller_data= (void*)AT91_PIN_PA3,
+ 	},
+ 	{	/* DataFlash card */
+ 		.modalias	= "mtd_dataflash",
+-		.chip_select	= 1,
++		.chip_select	= 4,
+ 		.max_speed_hz	= 15 * 1000 * 1000,
+ 		.bus_num	= 0,
++		.controller_data= (void*)AT91_PIN_PC11,
+ 	},
+ 	{	/* KS8995MA switch */
+ 		.modalias	= "spi-ks8995",
+-		.chip_select	= 2,
++		.chip_select	= 1,
+ 		.max_speed_hz	= 10 * 1000 * 1000,
+ 		.bus_num	= 0,
+ 		.controller_data= (void*)AT91_PIN_PB30,
+ 	},
+-#if 0
+ 	{	/* ZB */
+ 		.modalias	= "spi-cc2420",
+-		.chip_select	= 3,
++		.chip_select	= 2,
+ 		.max_speed_hz	= 10 * 1000 * 1000,
+ 		.bus_num	= 0,
+ 		.controller_data= (void*)AT91_PIN_PB31,
+ 	},
+-#endif
+ 	{	/* GPIO */
+-		.modalias	= "spi-gpio",
++		.modalias	= "mc74x595",
+ 		.chip_select	= 3,
+ 		.max_speed_hz	= 10 * 1000 * 1000,
+ 		.bus_num	= 0,
+ 		.controller_data= (void*)AT91_PIN_PB17,
++		.platform_data	= (const void *)&mrfsa_mc74x595_pdata,
+ 	},
+-	{	/* extension */
++	{	/* extension GPIO */
+ 		.modalias	= "spi-gpio",
+ 		.chip_select	= 0,
+ 		.max_speed_hz	= 10 * 1000 * 1000,
+@@ -255,19 +281,12 @@ static struct at91_mmc_data __initdata mrfsa_mmc_data = {
+  * LEDs
+  */
+ static struct gpio_led mrfsa_leds[] = {
+-#if 0
+-	{	/* "bottom" led, green, userled1 to be defined */
+-		.name			= "ds5",
+-		.gpio			= AT91_PIN_PA6,
+-		.active_low		= 1,
+-		.default_trigger	= "none",
+-	},
+-	{	/* "power" led, yellow */
+-		.name			= "ds1",
+-		.gpio			= AT91_PIN_PA9,
++	{	/* heartbeat led, green, userled1 to be defined */
++		.name			= "STATLED",
++		.gpio			= MRFSA_PIN_STAT_LED,
++		.active_low		= 0,
+ 		.default_trigger	= "heartbeat",
+-	}
+-#endif
++	},
+ };
+ 
+ /*
+diff --git a/arch/arm/mach-at91/gpio.c b/arch/arm/mach-at91/gpio.c
+index f41529a..8591810 100644
+--- a/arch/arm/mach-at91/gpio.c
++++ b/arch/arm/mach-at91/gpio.c
+@@ -202,6 +202,10 @@ EXPORT_SYMBOL(at91_set_multi_drive);
+ /* new-style GPIO calls; these expect at91_set_GPIO_periph to have been
+  * called, and maybe at91_set_multi_drive() for putout pins.
+  */
++#ifdef	CONFIG_GPIOLIB
++#define	gpio_direction_input	at91_set_gpio_direction_input
++#define	gpio_direction_output	at91_set_gpio_direction_output
++#endif	/* CONFIG_GPIOLIB */
+ 
+ int gpio_direction_input(unsigned pin)
+ {
+@@ -215,6 +219,19 @@ int gpio_direction_input(unsigned pin)
+ }
+ EXPORT_SYMBOL(gpio_direction_input);
+ 
++#ifdef	CONFIG_GPIOLIB
++static int at91_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
++{
++	void __iomem	*pio = pin_to_controller(chip->base);
++	unsigned	mask = 1 << (offset % 32);
++
++	if (!pio || !(__raw_readl(pio + PIO_PSR) & mask))
++		return -EINVAL;
++	__raw_writel(mask, pio + PIO_ODR);
++	return 0;
++}
++#endif	/* CONFIG_GPIOLIB */
++
+ int gpio_direction_output(unsigned pin, int value)
+ {
+ 	void __iomem	*pio = pin_to_controller(pin);
+@@ -228,6 +245,21 @@ int gpio_direction_output(unsigned pin, int value)
+ }
+ EXPORT_SYMBOL(gpio_direction_output);
+ 
++#ifdef	CONFIG_GPIOLIB
++static int at91_gpio_direction_output(struct gpio_chip *chip, unsigned offset, int value)
++{
++	void __iomem	*pio = pin_to_controller(chip->base);
++	unsigned	mask = 1 << (offset % 32);
++
++	if (!pio || !(__raw_readl(pio + PIO_PSR) & mask))
++		return -EINVAL;
++	__raw_writel(mask, pio + (value ? PIO_SODR : PIO_CODR));
++	__raw_writel(mask, pio + PIO_OER);
++	return 0;
++}
++#endif	/* CONFIG_GPIOLIB */
++
++
+ /*--------------------------------------------------------------------------*/
+ 
+ /*
+@@ -245,6 +277,15 @@ int at91_set_gpio_value(unsigned pin, int value)
+ }
+ EXPORT_SYMBOL(at91_set_gpio_value);
+ 
++#ifdef	CONFIG_GPIOLIB
++static void at91_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
++{
++	void __iomem	*pio = pin_to_controller(chip->base);
++	unsigned	mask = 1 << (offset % 32);
++	if (pio)
++		__raw_writel(mask, pio + (value ? PIO_SODR : PIO_CODR));
++}
++#endif	/* CONFIG_GPIOLIB */
+ 
+ /*
+  * read the pin's value (works even if it's not muxed as a gpio).
+@@ -262,6 +303,21 @@ int at91_get_gpio_value(unsigned pin)
+ }
+ EXPORT_SYMBOL(at91_get_gpio_value);
+ 
++#ifdef	CONFIG_GPIOLIB
++static int at91_gpio_get(struct gpio_chip *chip, unsigned offset)
++{
++	void __iomem	*pio = pin_to_controller(chip->base);
++	unsigned	mask = 1 << (offset % 32);
++	u32		pdsr;
++
++	if (!pio)
++		return -EINVAL;
++	pdsr = __raw_readl(pio + PIO_PDSR);
++	return (pdsr & mask) != 0;
++}
++#endif	/* CONFIG_GPIOLIB */
++
++
+ /*--------------------------------------------------------------------------*/
+ 
+ #ifdef CONFIG_PM
+@@ -540,6 +596,52 @@ void __init at91_gpio_irq_setup(void)
+ /*
+  * Called from the processor-specific init to enable GPIO pin support.
+  */
++#ifdef	CONFIG_GPIOLIB
++#ifdef	CONFIG_DEBUG_FS
++void at91_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
++{
++	unsigned	pin  = chip->base;
++	void __iomem	*pio = pin_to_controller(pin);
++	u32		pdsr, osr;
++	int i;
++
++	if (!pio)
++		return;
++
++	osr = __raw_readl(pio + PIO_OSR);
++	pdsr = __raw_readl(pio + PIO_PDSR);
++
++  	for (i = 0; i < chip->ngpio; i++)
++		seq_printf(s, "GPIO %s%d: %s %s\n", chip->label, i,
++			   (pdsr & (1 << i)) ? "set" : "clear",
++			   (osr & (1 << i)) ? "out" : "in");
++}
++#else
++#define	at91_gpio_dbg_show	NULL
++#endif
++
++#define	at91_gpio_BANK(name, base_gpio)					\
++	{								\
++		.label			= name,				\
++		.direction_input	= at91_gpio_direction_input,	\
++		.direction_output	= at91_gpio_direction_output,	\
++		.get			= at91_gpio_get,		\
++		.set			= at91_gpio_set,		\
++		.dbg_show		= at91_gpio_dbg_show,		\
++		.base			= base_gpio,			\
++		.ngpio			= 32,				\
++	}
++
++static struct gpio_chip at91_gpio_banks[6] = {
++	at91_gpio_BANK("PIOA", PIN_BASE + 0 * 32),
++	at91_gpio_BANK("PIOB", PIN_BASE + 1 * 32),
++	at91_gpio_BANK("PIOC", PIN_BASE + 2 * 32),
++	at91_gpio_BANK("PIOD", PIN_BASE + 3 * 32),
++	at91_gpio_BANK("PIOE", PIN_BASE + 4 * 32),
++	at91_gpio_BANK("PIOF", PIN_BASE + 5 * 32),
++};
++#endif	/* CONFIG_GPIOLIB */
++
+ void __init at91_gpio_init(struct at91_gpio_bank *data, int nr_banks)
+ {
+ 	unsigned		i;
+@@ -561,5 +663,9 @@ void __init at91_gpio_init(struct at91_gpio_bank *data, int nr_banks)
+ 		/* AT91CAP9_ID_PIOABCD groups PIOA, PIOB, PIOC, PIOD */
+ 		if (last && last->id == data->id)
+ 			last->next = data;
++#ifdef	CONFIG_GPIOLIB
++		if (i < 6)
++			gpiochip_add(&at91_gpio_banks[i]);
++#endif	/* CONFIG_GPIOLIB */
+ 	}
+ }
+diff --git a/arch/arm/mach-at91/include/mach/gpio.h b/arch/arm/mach-at91/include/mach/gpio.h
+index 76d76e2..986c11d 100644
+--- a/arch/arm/mach-at91/include/mach/gpio.h
++++ b/arch/arm/mach-at91/include/mach/gpio.h
+@@ -186,6 +186,27 @@
+ #define	AT91_PIN_PE30	(PIN_BASE + 0x80 + 30)
+ #define	AT91_PIN_PE31	(PIN_BASE + 0x80 + 31)
+ 
++#ifdef	CONFIG_MACH_MRFSA
++#define	MRFSA_PIN_BASE		(PIN_BASE + 0xa0)
++
++#define	MRFSA_PIN_STAT_LED	(MRFSA_PIN_BASE + 0)
++#define	MRFSA_PIN_GSM_LED	(MRFSA_PIN_BASE + 1)
++#define	MRFSA_PIN_ZB_LED	(MRFSA_PIN_BASE + 2)
++#define	MRFSA_PIN_SLED1		(MRFSA_PIN_BASE + 3)
++#define	MRFSA_PIN_SLED2		(MRFSA_PIN_BASE + 4)
++#define	MRFSA_PIN_SLED3		(MRFSA_PIN_BASE + 5)
++#define	MRFSA_PIN_ILED1		(MRFSA_PIN_BASE + 6)
++#define	MRFSA_PIN_ILED2		(MRFSA_PIN_BASE + 7)
++#define	MRFSA_PIN_ZB_VREG	(MRFSA_PIN_BASE + 8)
++#define	MRFSA_PIN_ZB_RESET	(MRFSA_PIN_BASE + 9)
++#define	MRFSA_PIN_GSM_ONOFF	(MRFSA_PIN_BASE + 10)
++#define	MRFSA_PIN_GSM_RESET	(MRFSA_PIN_BASE + 11)
++#define	MRFSA_PIN_GPS_ON	(MRFSA_PIN_BASE + 12)
++#define	MRFSA_PIN_GPS_RESET	(MRFSA_PIN_BASE + 13)
++#define	MRFSA_PIN_DO1		(MRFSA_PIN_BASE + 14)
++#define	MRFSA_PIN_DO2		(MRFSA_PIN_BASE + 15)
++#endif	/* CONFIG_MACH_MRFSA */
++
+ #ifndef __ASSEMBLY__
+ /* setup setup routines, called from board init or driver probe() */
+ extern int __init_or_module at91_set_GPIO_periph(unsigned pin, int use_pullup);
+@@ -213,6 +234,8 @@ extern void at91_gpio_resume(void);
+ 
+ #include <asm/errno.h>
+ 
++#ifndef	CONFIG_MACH_MRFSA
++
+ static inline int gpio_request(unsigned gpio, const char *label)
+ {
+ 	return 0;
+@@ -235,6 +258,17 @@ static inline void gpio_set_value(unsigned gpio, int value)
+ 	at91_set_gpio_value(gpio, value);
+ }
+ 
++#else	/* CONFIG_MACH_MRFSA */
++
++extern int gpio_direction_input(unsigned gpio);
++extern int gpio_direction_output(unsigned gpio, int value);
++
++#define	gpio_set_value	__gpio_set_value
++#define	gpio_get_value	__gpio_get_value
++#define	gpio_cansleep	__gpio_cansleep
++
++#endif	/* CONFIG_MACH_MRFSA */
++
+ #include <asm-generic/gpio.h>		/* cansleep wrappers */
+ 
+ static inline int gpio_to_irq(unsigned gpio)
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index dbd42d6..daf32be 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -160,4 +160,11 @@ config GPIO_MCP23S08
+ 	  SPI driver for Microchip MCP23S08 I/O expander.  This provides
+ 	  a GPIO interface supporting inputs and outputs.
+ 
++config GPIO_MC74X595
++	tristate "MC74x595 compatible shift register"
++	depends on SPI_MASTER
++	help
++	  SPI driver for MC74x595 compatible shift register.  This provides
++	  a GPIO interface supporting outputs.
++
+ endif
+diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
+index 01b4bbd..84b14e5 100644
+--- a/drivers/gpio/Makefile
++++ b/drivers/gpio/Makefile
+@@ -7,6 +7,7 @@ obj-$(CONFIG_GPIOLIB)		+= gpiolib.o
+ obj-$(CONFIG_GPIO_MAX7301)	+= max7301.o
+ obj-$(CONFIG_GPIO_MAX732X)	+= max732x.o
+ obj-$(CONFIG_GPIO_MCP23S08)	+= mcp23s08.o
++obj-$(CONFIG_GPIO_MC74X595)	+= mc74x595.o
+ obj-$(CONFIG_GPIO_PCA953X)	+= pca953x.o
+ obj-$(CONFIG_GPIO_PCF857X)	+= pcf857x.o
+ obj-$(CONFIG_GPIO_BT8XX)	+= bt8xxgpio.o
+diff --git a/drivers/gpio/mc74x595.c b/drivers/gpio/mc74x595.c
+new file mode 100644
+index 0000000..fff1732
+--- /dev/null
++++ b/drivers/gpio/mc74x595.c
+@@ -0,0 +1,310 @@
++/*
++ * mc74x595.c - SPI gpio expander driver
++ */
++
++#include <linux/kernel.h>
++#include <linux/device.h>
++#include <linux/workqueue.h>
++#include <linux/mutex.h>
++
++#include <linux/spi/spi.h>
++#include <linux/spi/mc74x595.h>
++
++#include <asm/gpio.h>
++
++
++/* Registers are all 8 bits wide. Multiple drivers can be daisy
++ * chained.
++ *
++ */
++
++/* A given spi_device can represent up to 8 mc74x595 chips
++ * sharing the same chipselect but using different addresses
++ * (e.g. chips #0 and #3 might be populated, but not #1 or $2).
++ * Driver data holds all the per-chip data.
++ */
++struct mc74x595 {
++	struct spi_device	*spi;
++
++	struct mutex		lock;
++
++	struct gpio_chip	chip;
++
++	struct work_struct	work;
++
++	unsigned		nchips;
++	u8			cache[MC74X595_MAX_CHIPS];
++	u8			inversion[MC74X595_MAX_CHIPS];
++};
++
++
++static int
++mc74x595_write(struct mc74x595 *mcp, const u8 *vals, unsigned n)
++{
++	if (n > sizeof mcp->cache)
++		return -EINVAL;
++	return spi_write(mcp->spi, vals, n);
++}
++
++#if 0
++static int
++mc74x595_read(struct mc74x595 *mcp, u8 *vals, unsigned n)
++{
++	if (n > sizeof mcp->cache)
++		return -EINVAL;
++	return spi_read(mcp->spi, vals, n);
++}
++#endif
++
++/*----------------------------------------------------------------------*/
++
++static int mc74x595_direction_input(struct gpio_chip *chip, unsigned offset)
++{
++	return -EINVAL;
++}
++
++static int mc74x595_get(struct gpio_chip *chip, unsigned offset)
++{
++	struct mc74x595	*mcp = container_of(chip, struct mc74x595, chip);
++	int status;
++
++	mutex_lock(&mcp->lock);
++
++	status = !!((mcp->cache[offset / 8] ^ mcp->inversion[offset / 8]) & (1 << (offset % 8)));
++
++	mutex_unlock(&mcp->lock);
++
++	return status;
++}
++
++static void mc74x595_set(struct gpio_chip *chip, unsigned offset, int value)
++{
++	struct mc74x595	*mcp = container_of(chip, struct mc74x595, chip);
++	u8 mask = 1 << (offset % 8);
++
++	mutex_lock(&mcp->lock);
++	if ((value != 0) ^ ((mcp->inversion[offset / 8] & mask) != 0))
++		mcp->cache[offset / 8] |= mask;
++	else
++		mcp->cache[offset / 8] &= ~mask;
++
++	mc74x595_write(mcp, mcp->cache, mcp->nchips);
++	mutex_unlock(&mcp->lock);
++}
++
++static int
++mc74x595_direction_output(struct gpio_chip *chip, unsigned offset, int value)
++{
++	return 0;
++}
++
++/*----------------------------------------------------------------------*/
++
++#ifdef CONFIG_DEBUG_FS
++
++#include <linux/seq_file.h>
++
++/*
++ * This shows more info than the generic gpio dump code:
++ * pullups, deglitching, open drain drive.
++ */
++static void mc74x595_dbg_show(struct seq_file *s, struct gpio_chip *chip)
++{
++	struct mc74x595	*mcp;
++	int		t;
++	unsigned	mask;
++
++	mcp = container_of(chip, struct mc74x595, chip);
++
++	mutex_lock(&mcp->lock);
++
++  	for (t = 0; t < mcp->nchips * 8; t++)
++		seq_printf(s, " %s%d %s out\n",
++			   chip->name, t, (mcp->cache[t / 8] & (1 << (t % 8))) ? "hi" : "lo");
++
++	mutex_unlock(&mcp->lock);
++}
++
++#else
++#define mc74x595_dbg_show	NULL
++#endif
++
++/*----------------------------------------------------------------------*/
++
++#if 0
++static int mc74x595_probe_one(struct spi_device *spi, unsigned addr,
++		unsigned base, unsigned pullups)
++{
++	struct mc74x595_driver_data	*data = spi_get_drvdata(spi);
++	struct mc74x595			*mcp = data->mcp[addr];
++	int				status;
++	int				do_update = 0;
++
++	mutex_init(&mcp->lock);
++
++	mcp->spi = spi;
++	mcp->addr = 0x40 | (addr << 1);
++
++	mcp->chip.label = "mc74x595",
++
++	mcp->chip.direction_input = mc74x595_direction_input;
++	mcp->chip.get = mc74x595_get;
++	mcp->chip.direction_output = mc74x595_direction_output;
++	mcp->chip.set = mc74x595_set;
++	mcp->chip.dbg_show = mc74x595_dbg_show;
++
++	mcp->chip.base = base;
++	mcp->chip.ngpio = 8;
++	mcp->chip.can_sleep = 1;
++	mcp->chip.dev = &spi->dev;
++	mcp->chip.owner = THIS_MODULE;
++
++	/* verify MCP_IOCON.SEQOP = 0, so sequential reads work,
++	 * and MCP_IOCON.HAEN = 1, so we work with all chips.
++	 */
++	status = mc74x595_read(mcp, MCP_IOCON);
++	if (status < 0)
++		goto fail;
++	if ((status & IOCON_SEQOP) || !(status & IOCON_HAEN)) {
++		status &= ~IOCON_SEQOP;
++		status |= IOCON_HAEN;
++		status = mc74x595_write(mcp, MCP_IOCON, (u8) status);
++		if (status < 0)
++			goto fail;
++	}
++
++	/* configure ~100K pullups */
++	status = mc74x595_write(mcp, MCP_GPPU, pullups);
++	if (status < 0)
++		goto fail;
++
++	status = mc74x595_read_regs(mcp, 0, mcp->cache, sizeof mcp->cache);
++	if (status < 0)
++		goto fail;
++
++	/* disable inverter on input */
++	if (mcp->cache[MCP_IPOL] != 0) {
++		mcp->cache[MCP_IPOL] = 0;
++		do_update = 1;
++	}
++
++	/* disable irqs */
++	if (mcp->cache[MCP_GPINTEN] != 0) {
++		mcp->cache[MCP_GPINTEN] = 0;
++		do_update = 1;
++	}
++
++	if (do_update) {
++		u8 tx[4];
++
++		tx[0] = mcp->addr;
++		tx[1] = MCP_IPOL;
++		memcpy(&tx[2], &mcp->cache[MCP_IPOL], sizeof(tx) - 2);
++		status = spi_write_then_read(mcp->spi, tx, sizeof tx, NULL, 0);
++		if (status < 0)
++			goto fail;
++	}
++
++	status = gpiochip_add(&mcp->chip);
++fail:
++	if (status < 0)
++		dev_dbg(&spi->dev, "can't setup chip %d, --> %d\n",
++				addr, status);
++	return status;
++}
++#endif
++
++static int mc74x595_probe(struct spi_device *spi)
++{
++	struct mc74x595_platform_data	*pdata;
++	struct mc74x595			*mcp;
++	int				status;
++	unsigned			base;
++
++	pdata = spi->dev.platform_data;
++	if (!pdata || !gpio_is_valid(pdata->base))
++		return -ENODEV;
++	if (pdata->nchips < 1 || pdata->nchips > MC74X595_MAX_CHIPS)
++		return -EINVAL;
++
++	mcp = kzalloc(sizeof *mcp, GFP_KERNEL);
++	if (!mcp)
++		return -ENOMEM;
++
++	spi_set_drvdata(spi, mcp);
++
++	base = pdata->base;
++	mutex_init(&mcp->lock);
++
++	mcp->spi = spi;
++	mcp->nchips = pdata->nchips;
++	memcpy(mcp->cache, pdata->inversion, sizeof mcp->cache);
++	memcpy(mcp->inversion, pdata->inversion, sizeof mcp->inversion);
++
++	mcp->chip.label = "mc74x595";
++
++	mcp->chip.direction_input = mc74x595_direction_input;
++	mcp->chip.get = mc74x595_get;
++	mcp->chip.direction_output = mc74x595_direction_output;
++	mcp->chip.set = mc74x595_set;
++	mcp->chip.dbg_show = mc74x595_dbg_show;
++
++	mcp->chip.base = base;
++	mcp->chip.ngpio = pdata->nchips * 8;
++	mcp->chip.can_sleep = 1;
++	mcp->chip.dev = &spi->dev;
++	mcp->chip.owner = THIS_MODULE;
++
++	status = gpiochip_add(&mcp->chip);
++
++	if (status == 0) {
++		mutex_lock(&mcp->lock);
++		mc74x595_write(mcp, mcp->cache, mcp->nchips);
++		mutex_unlock(&mcp->lock);
++	} else
++		kfree(mcp);
++
++	return status;
++}
++
++static int mc74x595_remove(struct spi_device *spi)
++{
++	struct mc74x595			*mcp = spi_get_drvdata(spi);
++	int				status;
++
++	status = gpiochip_remove(&mcp->chip);
++
++	if (status < 0) {
++		dev_err(&spi->dev, "%s --> %d\n", "remove", status);
++	}
++
++	if (status == 0)
++		kfree(mcp);
++
++	return status;
++}
++
++static struct spi_driver mc74x595_driver = {
++	.probe		= mc74x595_probe,
++	.remove		= mc74x595_remove,
++	.driver = {
++		.name	= "mc74x595",
++		.owner	= THIS_MODULE,
++	},
++};
++
++/*----------------------------------------------------------------------*/
++
++static int __init mc74x595_init(void)
++{
++	return spi_register_driver(&mc74x595_driver);
++}
++module_init(mc74x595_init);
++
++static void __exit mc74x595_exit(void)
++{
++	spi_unregister_driver(&mc74x595_driver);
++}
++module_exit(mc74x595_exit);
++
++MODULE_LICENSE("GPL");
+diff --git a/drivers/spi/atmel_spi.c b/drivers/spi/atmel_spi.c
+index ca42d96..440f590 100644
+--- a/drivers/spi/atmel_spi.c
++++ b/drivers/spi/atmel_spi.c
+@@ -99,7 +99,7 @@ static void cs_activate(struct atmel_spi *as, struct spi_device *spi)
+ 	}
+ 
+ 	mr = spi_readl(as, MR);
+-	mr = SPI_BFINS(PCS, ~(1 << spi->chip_select), mr);
++	mr = SPI_BFINS(PCS, ~(1 << (spi->chip_select & 3)), mr);
+ 
+ 	dev_dbg(&spi->dev, "activate %u%s, mr %08x\n",
+ 			gpio, active ? " (high)" : "",
+@@ -120,7 +120,7 @@ static void cs_deactivate(struct atmel_spi *as, struct spi_device *spi)
+ 	 * another device may be active when this routine is called.
+ 	 */
+ 	mr = spi_readl(as, MR);
+-	if (~SPI_BFEXT(PCS, mr) & (1 << spi->chip_select)) {
++	if (~SPI_BFEXT(PCS, mr) & (1 << (spi->chip_select & 3))) {
+ 		mr = SPI_BFINS(PCS, 0xf, mr);
+ 		spi_writel(as, MR, mr);
+ 	}
+@@ -609,7 +609,7 @@ static int atmel_spi_setup(struct spi_device *spi)
+ 		"setup: %lu Hz bpw %u mode 0x%x -> csr%d %08x\n",
+ 		bus_hz / scbr, bits, spi->mode, spi->chip_select, csr);
+ 
+-	spi_writel(as, CSR0 + 4 * spi->chip_select, csr);
++	spi_writel(as, CSR0 + 4 * (spi->chip_select & 3), csr);
+ 
+ 	return 0;
+ }
+@@ -730,7 +730,12 @@ static int __init atmel_spi_probe(struct platform_device *pdev)
+ 		goto out_free;
+ 
+ 	master->bus_num = pdev->id;
++#ifdef	CONFIG_MACH_MRFSA
++	/* we need some virtual chip selects */
++	master->num_chipselect = 8;
++#else
+ 	master->num_chipselect = 4;
++#endif
+ 	master->setup = atmel_spi_setup;
+ 	master->transfer = atmel_spi_transfer;
+ 	master->cleanup = atmel_spi_cleanup;
+diff --git a/include/linux/spi/mc74x595.h b/include/linux/spi/mc74x595.h
+new file mode 100644
+index 0000000..475ceb8
+--- /dev/null
++++ b/include/linux/spi/mc74x595.h
+@@ -0,0 +1,15 @@
++
++#define	MC74X595_MAX_CHIPS	8
++
++struct mc74x595_platform_data {
++	u8	nchips;			/* number of chips (1 - 8)	*/
++	u8	inversion[MC74X595_MAX_CHIPS];	/* output inversion bits*/
++
++	/* "base" is the number of the first GPIO.  Dynamic assignment is
++	 * not currently supported, and even if there are gaps in chip
++	 * addressing the GPIO numbers are sequential .. so for example
++	 * if only slaves 0 and 3 are present, their GPIOs range from
++	 * base to base+15.
++	 */
++	unsigned	base;
++};
+-- 
+1.7.0.4
+

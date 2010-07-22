@@ -1,0 +1,2600 @@
+From b08b72dcca35de06bfa0d3040ea486bef9d85ec1 Mon Sep 17 00:00:00 2001
+From: Sami Kantoluoto <skanto@sbld.embedtronics.fi>
+Date: Wed, 26 Aug 2009 17:27:10 +0300
+Subject: [PATCH 1/6] MRFSA patches from CVS
+
+---
+ arch/arm/configs/mrfsa_defconfig | 1306 ++++++++++++++++++++++++++++++++++++++
+ arch/arm/mach-at91/Kconfig       |    9 +-
+ arch/arm/mach-at91/Makefile      |    3 +
+ arch/arm/mach-at91/board-mrfsa.c |  316 +++++++++
+ arch/arm/tools/mach-types        |    1 +
+ drivers/rtc/rtc-ds1672.c         |   54 +-
+ drivers/spi/Kconfig              |    5 +
+ drivers/spi/Makefile             |    1 +
+ drivers/spi/spi_ks8995.c         |  419 ++++++++++++
+ drivers/watchdog/Kconfig         |    8 +
+ drivers/watchdog/Makefile        |    1 +
+ drivers/watchdog/mrfsa_wdt.c     |  289 +++++++++
+ 12 files changed, 2375 insertions(+), 37 deletions(-)
+ create mode 100644 arch/arm/configs/mrfsa_defconfig
+ create mode 100644 arch/arm/mach-at91/board-mrfsa.c
+ create mode 100644 drivers/spi/spi_ks8995.c
+ create mode 100644 drivers/watchdog/mrfsa_wdt.c
+
+diff --git a/arch/arm/configs/mrfsa_defconfig b/arch/arm/configs/mrfsa_defconfig
+new file mode 100644
+index 0000000..8e65213
+--- /dev/null
++++ b/arch/arm/configs/mrfsa_defconfig
+@@ -0,0 +1,1306 @@
++#
++# Automatically generated make config: don't edit
++# Linux kernel version: 2.6.27
++# Tue Jun 16 11:19:53 2009
++#
++CONFIG_ARM=y
++CONFIG_SYS_SUPPORTS_APM_EMULATION=y
++CONFIG_GENERIC_GPIO=y
++CONFIG_GENERIC_TIME=y
++CONFIG_GENERIC_CLOCKEVENTS=y
++CONFIG_MMU=y
++# CONFIG_NO_IOPORT is not set
++CONFIG_GENERIC_HARDIRQS=y
++CONFIG_STACKTRACE_SUPPORT=y
++CONFIG_HAVE_LATENCYTOP_SUPPORT=y
++CONFIG_LOCKDEP_SUPPORT=y
++CONFIG_TRACE_IRQFLAGS_SUPPORT=y
++CONFIG_HARDIRQS_SW_RESEND=y
++CONFIG_GENERIC_IRQ_PROBE=y
++CONFIG_RWSEM_GENERIC_SPINLOCK=y
++# CONFIG_ARCH_HAS_ILOG2_U32 is not set
++# CONFIG_ARCH_HAS_ILOG2_U64 is not set
++CONFIG_GENERIC_HWEIGHT=y
++CONFIG_GENERIC_CALIBRATE_DELAY=y
++CONFIG_ARCH_SUPPORTS_AOUT=y
++CONFIG_ZONE_DMA=y
++CONFIG_GENERIC_HARDIRQS_NO__DO_IRQ=y
++CONFIG_VECTORS_BASE=0xffff0000
++CONFIG_DEFCONFIG_LIST="/lib/modules/$UNAME_RELEASE/.config"
++
++#
++# General setup
++#
++CONFIG_EXPERIMENTAL=y
++CONFIG_BROKEN_ON_SMP=y
++CONFIG_LOCK_KERNEL=y
++CONFIG_INIT_ENV_ARG_LIMIT=32
++CONFIG_LOCALVERSION=""
++# CONFIG_LOCALVERSION_AUTO is not set
++# CONFIG_SWAP is not set
++CONFIG_SYSVIPC=y
++CONFIG_SYSVIPC_SYSCTL=y
++# CONFIG_POSIX_MQUEUE is not set
++# CONFIG_BSD_PROCESS_ACCT is not set
++# CONFIG_TASKSTATS is not set
++# CONFIG_AUDIT is not set
++# CONFIG_IKCONFIG is not set
++CONFIG_LOG_BUF_SHIFT=16
++# CONFIG_CGROUPS is not set
++# CONFIG_GROUP_SCHED is not set
++CONFIG_SYSFS_DEPRECATED=y
++CONFIG_SYSFS_DEPRECATED_V2=y
++# CONFIG_RELAY is not set
++# CONFIG_NAMESPACES is not set
++CONFIG_BLK_DEV_INITRD=y
++CONFIG_INITRAMFS_SOURCE=""
++CONFIG_CC_OPTIMIZE_FOR_SIZE=y
++CONFIG_SYSCTL=y
++CONFIG_EMBEDDED=y
++CONFIG_UID16=y
++CONFIG_SYSCTL_SYSCALL=y
++CONFIG_KALLSYMS=y
++# CONFIG_KALLSYMS_EXTRA_PASS is not set
++CONFIG_HOTPLUG=y
++CONFIG_PRINTK=y
++CONFIG_BUG=y
++CONFIG_ELF_CORE=y
++CONFIG_COMPAT_BRK=y
++CONFIG_BASE_FULL=y
++CONFIG_FUTEX=y
++CONFIG_ANON_INODES=y
++CONFIG_EPOLL=y
++CONFIG_SIGNALFD=y
++CONFIG_TIMERFD=y
++CONFIG_EVENTFD=y
++CONFIG_SHMEM=y
++CONFIG_VM_EVENT_COUNTERS=y
++CONFIG_SLAB=y
++# CONFIG_SLUB is not set
++# CONFIG_SLOB is not set
++# CONFIG_PROFILING is not set
++# CONFIG_MARKERS is not set
++CONFIG_HAVE_OPROFILE=y
++# CONFIG_KPROBES is not set
++# CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS is not set
++# CONFIG_HAVE_IOREMAP_PROT is not set
++CONFIG_HAVE_KPROBES=y
++CONFIG_HAVE_KRETPROBES=y
++# CONFIG_HAVE_ARCH_TRACEHOOK is not set
++# CONFIG_HAVE_DMA_ATTRS is not set
++# CONFIG_USE_GENERIC_SMP_HELPERS is not set
++CONFIG_HAVE_CLK=y
++CONFIG_PROC_PAGE_MONITOR=y
++CONFIG_HAVE_GENERIC_DMA_COHERENT=y
++CONFIG_SLABINFO=y
++CONFIG_RT_MUTEXES=y
++# CONFIG_TINY_SHMEM is not set
++CONFIG_BASE_SMALL=0
++CONFIG_MODULES=y
++# CONFIG_MODULE_FORCE_LOAD is not set
++CONFIG_MODULE_UNLOAD=y
++# CONFIG_MODULE_FORCE_UNLOAD is not set
++# CONFIG_MODVERSIONS is not set
++# CONFIG_MODULE_SRCVERSION_ALL is not set
++CONFIG_KMOD=y
++CONFIG_BLOCK=y
++# CONFIG_LBD is not set
++# CONFIG_BLK_DEV_IO_TRACE is not set
++# CONFIG_LSF is not set
++# CONFIG_BLK_DEV_BSG is not set
++# CONFIG_BLK_DEV_INTEGRITY is not set
++
++#
++# IO Schedulers
++#
++CONFIG_IOSCHED_NOOP=y
++CONFIG_IOSCHED_AS=y
++# CONFIG_IOSCHED_DEADLINE is not set
++# CONFIG_IOSCHED_CFQ is not set
++CONFIG_DEFAULT_AS=y
++# CONFIG_DEFAULT_DEADLINE is not set
++# CONFIG_DEFAULT_CFQ is not set
++# CONFIG_DEFAULT_NOOP is not set
++CONFIG_DEFAULT_IOSCHED="anticipatory"
++CONFIG_CLASSIC_RCU=y
++
++#
++# System Type
++#
++# CONFIG_ARCH_AAEC2000 is not set
++# CONFIG_ARCH_INTEGRATOR is not set
++# CONFIG_ARCH_REALVIEW is not set
++# CONFIG_ARCH_VERSATILE is not set
++CONFIG_ARCH_AT91=y
++# CONFIG_ARCH_CLPS7500 is not set
++# CONFIG_ARCH_CLPS711X is not set
++# CONFIG_ARCH_EBSA110 is not set
++# CONFIG_ARCH_EP93XX is not set
++# CONFIG_ARCH_FOOTBRIDGE is not set
++# CONFIG_ARCH_NETX is not set
++# CONFIG_ARCH_H720X is not set
++# CONFIG_ARCH_IMX is not set
++# CONFIG_ARCH_IOP13XX is not set
++# CONFIG_ARCH_IOP32X is not set
++# CONFIG_ARCH_IOP33X is not set
++# CONFIG_ARCH_IXP23XX is not set
++# CONFIG_ARCH_IXP2000 is not set
++# CONFIG_ARCH_IXP4XX is not set
++# CONFIG_ARCH_L7200 is not set
++# CONFIG_ARCH_KIRKWOOD is not set
++# CONFIG_ARCH_KS8695 is not set
++# CONFIG_ARCH_NS9XXX is not set
++# CONFIG_ARCH_LOKI is not set
++# CONFIG_ARCH_MV78XX0 is not set
++# CONFIG_ARCH_MXC is not set
++# CONFIG_ARCH_ORION5X is not set
++# CONFIG_ARCH_PNX4008 is not set
++# CONFIG_ARCH_PXA is not set
++# CONFIG_ARCH_RPC is not set
++# CONFIG_ARCH_SA1100 is not set
++# CONFIG_ARCH_S3C2410 is not set
++# CONFIG_ARCH_SHARK is not set
++# CONFIG_ARCH_LH7A40X is not set
++# CONFIG_ARCH_DAVINCI is not set
++# CONFIG_ARCH_OMAP is not set
++# CONFIG_ARCH_MSM7X00A is not set
++
++#
++# Boot options
++#
++
++#
++# Power management
++#
++
++#
++# Atmel AT91 System-on-Chip
++#
++# CONFIG_ARCH_AT91RM9200 is not set
++# CONFIG_ARCH_AT91SAM9260 is not set
++# CONFIG_ARCH_AT91SAM9261 is not set
++# CONFIG_ARCH_AT91SAM9263 is not set
++# CONFIG_ARCH_AT91SAM9RL is not set
++CONFIG_ARCH_AT91SAM9G20=y
++# CONFIG_ARCH_AT91CAP9 is not set
++# CONFIG_ARCH_AT91X40 is not set
++CONFIG_AT91_PMC_UNIT=y
++
++#
++# AT91SAM9G20 Board Type
++#
++# CONFIG_MACH_AT91SAM9G20EK is not set
++CONFIG_MACH_MRFSA=y
++
++#
++# AT91 Board Options
++#
++CONFIG_MTD_AT91_DATAFLASH_CARD=y
++
++#
++# AT91 Feature Selections
++#
++CONFIG_AT91_PROGRAMMABLE_CLOCKS=y
++CONFIG_AT91_TIMER_HZ=100
++CONFIG_AT91_EARLY_DBGU=y
++# CONFIG_AT91_EARLY_USART0 is not set
++# CONFIG_AT91_EARLY_USART1 is not set
++# CONFIG_AT91_EARLY_USART2 is not set
++# CONFIG_AT91_EARLY_USART3 is not set
++# CONFIG_AT91_EARLY_USART4 is not set
++# CONFIG_AT91_EARLY_USART5 is not set
++
++#
++# Processor Type
++#
++CONFIG_CPU_32=y
++CONFIG_CPU_ARM926T=y
++CONFIG_CPU_32v5=y
++CONFIG_CPU_ABRT_EV5TJ=y
++CONFIG_CPU_PABRT_NOIFAR=y
++CONFIG_CPU_CACHE_VIVT=y
++CONFIG_CPU_COPY_V4WB=y
++CONFIG_CPU_TLB_V4WBI=y
++CONFIG_CPU_CP15=y
++CONFIG_CPU_CP15_MMU=y
++
++#
++# Processor Features
++#
++CONFIG_ARM_THUMB=y
++# CONFIG_CPU_ICACHE_DISABLE is not set
++# CONFIG_CPU_DCACHE_DISABLE is not set
++# CONFIG_CPU_DCACHE_WRITETHROUGH is not set
++# CONFIG_CPU_CACHE_ROUND_ROBIN is not set
++# CONFIG_OUTER_CACHE is not set
++
++#
++# Bus support
++#
++# CONFIG_PCI_SYSCALL is not set
++# CONFIG_ARCH_SUPPORTS_MSI is not set
++# CONFIG_PCCARD is not set
++
++#
++# Kernel Features
++#
++# CONFIG_TICK_ONESHOT is not set
++# CONFIG_NO_HZ is not set
++# CONFIG_HIGH_RES_TIMERS is not set
++CONFIG_GENERIC_CLOCKEVENTS_BUILD=y
++CONFIG_PREEMPT=y
++CONFIG_HZ=100
++CONFIG_AEABI=y
++CONFIG_OABI_COMPAT=y
++CONFIG_ARCH_FLATMEM_HAS_HOLES=y
++# CONFIG_ARCH_DISCONTIGMEM_ENABLE is not set
++CONFIG_SELECT_MEMORY_MODEL=y
++CONFIG_FLATMEM_MANUAL=y
++# CONFIG_DISCONTIGMEM_MANUAL is not set
++# CONFIG_SPARSEMEM_MANUAL is not set
++CONFIG_FLATMEM=y
++CONFIG_FLAT_NODE_MEM_MAP=y
++# CONFIG_SPARSEMEM_STATIC is not set
++# CONFIG_SPARSEMEM_VMEMMAP_ENABLE is not set
++CONFIG_PAGEFLAGS_EXTENDED=y
++CONFIG_SPLIT_PTLOCK_CPUS=4096
++# CONFIG_RESOURCES_64BIT is not set
++CONFIG_ZONE_DMA_FLAG=1
++CONFIG_BOUNCE=y
++CONFIG_VIRT_TO_BUS=y
++# CONFIG_LEDS is not set
++CONFIG_ALIGNMENT_TRAP=y
++
++#
++# Boot options
++#
++CONFIG_ZBOOT_ROM_TEXT=0x0
++CONFIG_ZBOOT_ROM_BSS=0x0
++CONFIG_CMDLINE="mem=64M console=ttyS0,115200 root=/dev/mtdblock1 rw rootfstype=jffs2"
++# CONFIG_XIP_KERNEL is not set
++# CONFIG_KEXEC is not set
++
++#
++# Floating point emulation
++#
++
++#
++# At least one emulation must be selected
++#
++CONFIG_FPE_NWFPE=y
++# CONFIG_FPE_NWFPE_XP is not set
++# CONFIG_FPE_FASTFPE is not set
++# CONFIG_VFP is not set
++
++#
++# Userspace binary formats
++#
++CONFIG_BINFMT_ELF=y
++# CONFIG_BINFMT_AOUT is not set
++# CONFIG_BINFMT_MISC is not set
++
++#
++# Power management options
++#
++# CONFIG_PM is not set
++CONFIG_ARCH_SUSPEND_POSSIBLE=y
++CONFIG_NET=y
++
++#
++# Networking options
++#
++CONFIG_PACKET=y
++CONFIG_PACKET_MMAP=y
++CONFIG_UNIX=y
++# CONFIG_NET_KEY is not set
++CONFIG_INET=y
++# CONFIG_IP_MULTICAST is not set
++# CONFIG_IP_ADVANCED_ROUTER is not set
++CONFIG_IP_FIB_HASH=y
++CONFIG_IP_PNP=y
++# CONFIG_IP_PNP_DHCP is not set
++CONFIG_IP_PNP_BOOTP=y
++# CONFIG_IP_PNP_RARP is not set
++# CONFIG_NET_IPIP is not set
++# CONFIG_NET_IPGRE is not set
++# CONFIG_ARPD is not set
++# CONFIG_SYN_COOKIES is not set
++# CONFIG_INET_AH is not set
++# CONFIG_INET_ESP is not set
++# CONFIG_INET_IPCOMP is not set
++# CONFIG_INET_XFRM_TUNNEL is not set
++# CONFIG_INET_TUNNEL is not set
++# CONFIG_INET_XFRM_MODE_TRANSPORT is not set
++# CONFIG_INET_XFRM_MODE_TUNNEL is not set
++# CONFIG_INET_XFRM_MODE_BEET is not set
++# CONFIG_INET_LRO is not set
++CONFIG_INET_DIAG=y
++CONFIG_INET_TCP_DIAG=y
++# CONFIG_TCP_CONG_ADVANCED is not set
++CONFIG_TCP_CONG_CUBIC=y
++CONFIG_DEFAULT_TCP_CONG="cubic"
++# CONFIG_TCP_MD5SIG is not set
++# CONFIG_IP_VS is not set
++# CONFIG_IPV6 is not set
++# CONFIG_NETWORK_SECMARK is not set
++CONFIG_NETFILTER=y
++# CONFIG_NETFILTER_DEBUG is not set
++CONFIG_NETFILTER_ADVANCED=y
++
++#
++# Core Netfilter Configuration
++#
++# CONFIG_NETFILTER_NETLINK_QUEUE is not set
++# CONFIG_NETFILTER_NETLINK_LOG is not set
++# CONFIG_NF_CONNTRACK is not set
++# CONFIG_NETFILTER_XTABLES is not set
++
++#
++# IP: Netfilter Configuration
++#
++# CONFIG_IP_NF_QUEUE is not set
++# CONFIG_IP_NF_IPTABLES is not set
++# CONFIG_IP_NF_ARPTABLES is not set
++# CONFIG_IP_DCCP is not set
++# CONFIG_IP_SCTP is not set
++# CONFIG_TIPC is not set
++# CONFIG_ATM is not set
++# CONFIG_BRIDGE is not set
++CONFIG_VLAN_8021Q=y
++# CONFIG_VLAN_8021Q_GVRP is not set
++# CONFIG_DECNET is not set
++# CONFIG_LLC2 is not set
++# CONFIG_IPX is not set
++# CONFIG_ATALK is not set
++# CONFIG_X25 is not set
++# CONFIG_LAPB is not set
++# CONFIG_ECONET is not set
++# CONFIG_WAN_ROUTER is not set
++# CONFIG_NET_SCHED is not set
++
++#
++# Network testing
++#
++# CONFIG_NET_PKTGEN is not set
++# CONFIG_HAMRADIO is not set
++# CONFIG_CAN is not set
++# CONFIG_IRDA is not set
++# CONFIG_BT is not set
++# CONFIG_AF_RXRPC is not set
++
++#
++# Wireless
++#
++# CONFIG_CFG80211 is not set
++# CONFIG_WIRELESS_EXT is not set
++# CONFIG_MAC80211 is not set
++# CONFIG_IEEE80211 is not set
++# CONFIG_RFKILL is not set
++# CONFIG_NET_9P is not set
++
++#
++# Device Drivers
++#
++
++#
++# Generic Driver Options
++#
++CONFIG_UEVENT_HELPER_PATH="/sbin/hotplug"
++CONFIG_STANDALONE=y
++CONFIG_PREVENT_FIRMWARE_BUILD=y
++CONFIG_FW_LOADER=y
++CONFIG_FIRMWARE_IN_KERNEL=y
++CONFIG_EXTRA_FIRMWARE=""
++# CONFIG_SYS_HYPERVISOR is not set
++# CONFIG_CONNECTOR is not set
++CONFIG_MTD=y
++# CONFIG_MTD_DEBUG is not set
++CONFIG_MTD_CONCAT=y
++CONFIG_MTD_PARTITIONS=y
++# CONFIG_MTD_REDBOOT_PARTS is not set
++CONFIG_MTD_CMDLINE_PARTS=y
++# CONFIG_MTD_AFS_PARTS is not set
++# CONFIG_MTD_AR7_PARTS is not set
++
++#
++# User Modules And Translation Layers
++#
++CONFIG_MTD_CHAR=y
++CONFIG_MTD_BLKDEVS=y
++CONFIG_MTD_BLOCK=y
++# CONFIG_FTL is not set
++# CONFIG_NFTL is not set
++# CONFIG_INFTL is not set
++# CONFIG_RFD_FTL is not set
++# CONFIG_SSFDC is not set
++# CONFIG_MTD_OOPS is not set
++
++#
++# RAM/ROM/Flash chip drivers
++#
++# CONFIG_MTD_CFI is not set
++# CONFIG_MTD_JEDECPROBE is not set
++CONFIG_MTD_MAP_BANK_WIDTH_1=y
++CONFIG_MTD_MAP_BANK_WIDTH_2=y
++CONFIG_MTD_MAP_BANK_WIDTH_4=y
++# CONFIG_MTD_MAP_BANK_WIDTH_8 is not set
++# CONFIG_MTD_MAP_BANK_WIDTH_16 is not set
++# CONFIG_MTD_MAP_BANK_WIDTH_32 is not set
++CONFIG_MTD_CFI_I1=y
++CONFIG_MTD_CFI_I2=y
++# CONFIG_MTD_CFI_I4 is not set
++# CONFIG_MTD_CFI_I8 is not set
++# CONFIG_MTD_RAM is not set
++# CONFIG_MTD_ROM is not set
++# CONFIG_MTD_ABSENT is not set
++
++#
++# Mapping drivers for chip access
++#
++# CONFIG_MTD_COMPLEX_MAPPINGS is not set
++# CONFIG_MTD_PLATRAM is not set
++
++#
++# Self-contained MTD device drivers
++#
++CONFIG_MTD_DATAFLASH=y
++# CONFIG_MTD_M25P80 is not set
++# CONFIG_MTD_SLRAM is not set
++# CONFIG_MTD_PHRAM is not set
++# CONFIG_MTD_MTDRAM is not set
++# CONFIG_MTD_BLOCK2MTD is not set
++
++#
++# Disk-On-Chip Device Drivers
++#
++# CONFIG_MTD_DOC2000 is not set
++# CONFIG_MTD_DOC2001 is not set
++# CONFIG_MTD_DOC2001PLUS is not set
++# CONFIG_MTD_NAND is not set
++# CONFIG_MTD_ONENAND is not set
++
++#
++# UBI - Unsorted block images
++#
++# CONFIG_MTD_UBI is not set
++# CONFIG_PARPORT is not set
++CONFIG_BLK_DEV=y
++# CONFIG_BLK_DEV_COW_COMMON is not set
++CONFIG_BLK_DEV_LOOP=y
++# CONFIG_BLK_DEV_CRYPTOLOOP is not set
++# CONFIG_BLK_DEV_NBD is not set
++# CONFIG_BLK_DEV_UB is not set
++CONFIG_BLK_DEV_RAM=y
++CONFIG_BLK_DEV_RAM_COUNT=16
++CONFIG_BLK_DEV_RAM_SIZE=8192
++# CONFIG_BLK_DEV_XIP is not set
++# CONFIG_CDROM_PKTCDVD is not set
++# CONFIG_ATA_OVER_ETH is not set
++CONFIG_MISC_DEVICES=y
++# CONFIG_ATMEL_TCLIB is not set
++# CONFIG_EEPROM_93CX6 is not set
++# CONFIG_ATMEL_SSC is not set
++# CONFIG_ENCLOSURE_SERVICES is not set
++CONFIG_HAVE_IDE=y
++# CONFIG_IDE is not set
++
++#
++# SCSI device support
++#
++# CONFIG_RAID_ATTRS is not set
++CONFIG_SCSI=y
++CONFIG_SCSI_DMA=y
++# CONFIG_SCSI_TGT is not set
++# CONFIG_SCSI_NETLINK is not set
++CONFIG_SCSI_PROC_FS=y
++
++#
++# SCSI support type (disk, tape, CD-ROM)
++#
++CONFIG_BLK_DEV_SD=y
++# CONFIG_CHR_DEV_ST is not set
++# CONFIG_CHR_DEV_OSST is not set
++# CONFIG_BLK_DEV_SR is not set
++# CONFIG_CHR_DEV_SG is not set
++# CONFIG_CHR_DEV_SCH is not set
++
++#
++# Some SCSI devices (e.g. CD jukebox) support multiple LUNs
++#
++CONFIG_SCSI_MULTI_LUN=y
++# CONFIG_SCSI_CONSTANTS is not set
++# CONFIG_SCSI_LOGGING is not set
++# CONFIG_SCSI_SCAN_ASYNC is not set
++CONFIG_SCSI_WAIT_SCAN=m
++
++#
++# SCSI Transports
++#
++# CONFIG_SCSI_SPI_ATTRS is not set
++# CONFIG_SCSI_FC_ATTRS is not set
++# CONFIG_SCSI_ISCSI_ATTRS is not set
++# CONFIG_SCSI_SAS_LIBSAS is not set
++# CONFIG_SCSI_SRP_ATTRS is not set
++# CONFIG_SCSI_LOWLEVEL is not set
++# CONFIG_SCSI_DH is not set
++# CONFIG_ATA is not set
++# CONFIG_MD is not set
++CONFIG_NETDEVICES=y
++# CONFIG_DUMMY is not set
++# CONFIG_BONDING is not set
++# CONFIG_MACVLAN is not set
++# CONFIG_EQUALIZER is not set
++# CONFIG_TUN is not set
++# CONFIG_VETH is not set
++CONFIG_PHYLIB=y
++
++#
++# MII PHY device drivers
++#
++# CONFIG_MARVELL_PHY is not set
++# CONFIG_DAVICOM_PHY is not set
++# CONFIG_QSEMI_PHY is not set
++# CONFIG_LXT_PHY is not set
++# CONFIG_CICADA_PHY is not set
++# CONFIG_VITESSE_PHY is not set
++# CONFIG_SMSC_PHY is not set
++# CONFIG_BROADCOM_PHY is not set
++# CONFIG_ICPLUS_PHY is not set
++# CONFIG_REALTEK_PHY is not set
++CONFIG_FIXED_PHY=y
++# CONFIG_MDIO_BITBANG is not set
++CONFIG_NET_ETHERNET=y
++CONFIG_MII=y
++CONFIG_MACB=y
++# CONFIG_AX88796 is not set
++# CONFIG_SMC91X is not set
++# CONFIG_DM9000 is not set
++# CONFIG_ENC28J60 is not set
++# CONFIG_IBM_NEW_EMAC_ZMII is not set
++# CONFIG_IBM_NEW_EMAC_RGMII is not set
++# CONFIG_IBM_NEW_EMAC_TAH is not set
++# CONFIG_IBM_NEW_EMAC_EMAC4 is not set
++# CONFIG_B44 is not set
++# CONFIG_NETDEV_1000 is not set
++# CONFIG_NETDEV_10000 is not set
++
++#
++# Wireless LAN
++#
++# CONFIG_WLAN_PRE80211 is not set
++# CONFIG_WLAN_80211 is not set
++# CONFIG_IWLWIFI_LEDS is not set
++
++#
++# USB Network Adapters
++#
++# CONFIG_USB_CATC is not set
++CONFIG_USB_KAWETH=y
++CONFIG_USB_PEGASUS=y
++# CONFIG_USB_RTL8150 is not set
++# CONFIG_USB_USBNET is not set
++# CONFIG_WAN is not set
++# CONFIG_PPP is not set
++# CONFIG_SLIP is not set
++# CONFIG_NETCONSOLE is not set
++# CONFIG_NETPOLL is not set
++# CONFIG_NET_POLL_CONTROLLER is not set
++# CONFIG_ISDN is not set
++
++#
++# Input device support
++#
++CONFIG_INPUT=y
++# CONFIG_INPUT_FF_MEMLESS is not set
++# CONFIG_INPUT_POLLDEV is not set
++
++#
++# Userland interfaces
++#
++CONFIG_INPUT_MOUSEDEV=y
++# CONFIG_INPUT_MOUSEDEV_PSAUX is not set
++CONFIG_INPUT_MOUSEDEV_SCREEN_X=320
++CONFIG_INPUT_MOUSEDEV_SCREEN_Y=240
++# CONFIG_INPUT_JOYDEV is not set
++CONFIG_INPUT_EVDEV=y
++# CONFIG_INPUT_EVBUG is not set
++
++#
++# Input Device Drivers
++#
++CONFIG_INPUT_KEYBOARD=y
++# CONFIG_KEYBOARD_ATKBD is not set
++# CONFIG_KEYBOARD_SUNKBD is not set
++# CONFIG_KEYBOARD_LKKBD is not set
++# CONFIG_KEYBOARD_XTKBD is not set
++# CONFIG_KEYBOARD_NEWTON is not set
++# CONFIG_KEYBOARD_STOWAWAY is not set
++CONFIG_KEYBOARD_GPIO=y
++# CONFIG_INPUT_MOUSE is not set
++# CONFIG_INPUT_JOYSTICK is not set
++# CONFIG_INPUT_TABLET is not set
++CONFIG_INPUT_TOUCHSCREEN=y
++# CONFIG_TOUCHSCREEN_ADS7846 is not set
++# CONFIG_TOUCHSCREEN_FUJITSU is not set
++# CONFIG_TOUCHSCREEN_GUNZE is not set
++# CONFIG_TOUCHSCREEN_ELO is not set
++# CONFIG_TOUCHSCREEN_MTOUCH is not set
++# CONFIG_TOUCHSCREEN_INEXIO is not set
++# CONFIG_TOUCHSCREEN_MK712 is not set
++# CONFIG_TOUCHSCREEN_PENMOUNT is not set
++# CONFIG_TOUCHSCREEN_TOUCHRIGHT is not set
++# CONFIG_TOUCHSCREEN_TOUCHWIN is not set
++# CONFIG_TOUCHSCREEN_UCB1400 is not set
++# CONFIG_TOUCHSCREEN_USB_COMPOSITE is not set
++# CONFIG_TOUCHSCREEN_TOUCHIT213 is not set
++# CONFIG_INPUT_MISC is not set
++
++#
++# Hardware I/O ports
++#
++# CONFIG_SERIO is not set
++# CONFIG_GAMEPORT is not set
++
++#
++# Character devices
++#
++CONFIG_VT=y
++CONFIG_CONSOLE_TRANSLATIONS=y
++CONFIG_VT_CONSOLE=y
++CONFIG_HW_CONSOLE=y
++# CONFIG_VT_HW_CONSOLE_BINDING is not set
++CONFIG_DEVKMEM=y
++# CONFIG_SERIAL_NONSTANDARD is not set
++
++#
++# Serial drivers
++#
++# CONFIG_SERIAL_8250 is not set
++
++#
++# Non-8250 serial port support
++#
++CONFIG_SERIAL_ATMEL=y
++CONFIG_SERIAL_ATMEL_CONSOLE=y
++CONFIG_SERIAL_ATMEL_PDC=y
++# CONFIG_SERIAL_ATMEL_TTYAT is not set
++CONFIG_SERIAL_CORE=y
++CONFIG_SERIAL_CORE_CONSOLE=y
++CONFIG_UNIX98_PTYS=y
++CONFIG_LEGACY_PTYS=y
++CONFIG_LEGACY_PTY_COUNT=16
++# CONFIG_IPMI_HANDLER is not set
++CONFIG_HW_RANDOM=y
++# CONFIG_NVRAM is not set
++# CONFIG_R3964 is not set
++# CONFIG_RAW_DRIVER is not set
++# CONFIG_TCG_TPM is not set
++CONFIG_I2C=y
++CONFIG_I2C_BOARDINFO=y
++# CONFIG_I2C_CHARDEV is not set
++CONFIG_I2C_HELPER_AUTO=y
++CONFIG_I2C_ALGOBIT=y
++
++#
++# I2C Hardware Bus support
++#
++
++#
++# I2C system bus drivers (mostly embedded / system-on-chip)
++#
++CONFIG_I2C_GPIO=y
++# CONFIG_I2C_OCORES is not set
++# CONFIG_I2C_SIMTEC is not set
++
++#
++# External I2C/SMBus adapter drivers
++#
++# CONFIG_I2C_PARPORT_LIGHT is not set
++# CONFIG_I2C_TAOS_EVM is not set
++# CONFIG_I2C_TINY_USB is not set
++
++#
++# Other I2C/SMBus bus drivers
++#
++# CONFIG_I2C_PCA_PLATFORM is not set
++# CONFIG_I2C_STUB is not set
++
++#
++# Miscellaneous I2C Chip support
++#
++CONFIG_DS1682=y
++CONFIG_AT24=y
++# CONFIG_SENSORS_EEPROM is not set
++# CONFIG_SENSORS_PCF8574 is not set
++# CONFIG_PCF8575 is not set
++# CONFIG_SENSORS_PCA9539 is not set
++# CONFIG_SENSORS_PCF8591 is not set
++# CONFIG_SENSORS_MAX6875 is not set
++# CONFIG_SENSORS_TSL2550 is not set
++# CONFIG_I2C_DEBUG_CORE is not set
++# CONFIG_I2C_DEBUG_ALGO is not set
++# CONFIG_I2C_DEBUG_BUS is not set
++# CONFIG_I2C_DEBUG_CHIP is not set
++CONFIG_SPI=y
++CONFIG_SPI_MASTER=y
++
++#
++# SPI Master Controller Drivers
++#
++CONFIG_SPI_ATMEL=y
++# CONFIG_SPI_BITBANG is not set
++
++#
++# SPI Protocol Masters
++#
++# CONFIG_SPI_AT25 is not set
++# CONFIG_SPI_SPIDEV is not set
++# CONFIG_SPI_TLE62X0 is not set
++CONFIG_SPI_KS8995=y
++# CONFIG_W1 is not set
++# CONFIG_POWER_SUPPLY is not set
++# CONFIG_HWMON is not set
++CONFIG_WATCHDOG=y
++CONFIG_WATCHDOG_NOWAYOUT=y
++
++#
++# Watchdog Device Drivers
++#
++# CONFIG_SOFT_WATCHDOG is not set
++# CONFIG_AT91SAM9_WATCHDOG is not set
++CONFIG_MRFSA_WATCHDOG=y
++
++#
++# USB-based Watchdog Cards
++#
++# CONFIG_USBPCWATCHDOG is not set
++
++#
++# Sonics Silicon Backplane
++#
++CONFIG_SSB_POSSIBLE=y
++# CONFIG_SSB is not set
++
++#
++# Multifunction device drivers
++#
++# CONFIG_MFD_CORE is not set
++# CONFIG_MFD_SM501 is not set
++# CONFIG_HTC_PASIC3 is not set
++# CONFIG_MFD_TMIO is not set
++# CONFIG_MFD_T7L66XB is not set
++# CONFIG_MFD_TC6387XB is not set
++
++#
++# Multimedia devices
++#
++
++#
++# Multimedia core support
++#
++# CONFIG_VIDEO_DEV is not set
++# CONFIG_DVB_CORE is not set
++# CONFIG_VIDEO_MEDIA is not set
++
++#
++# Multimedia drivers
++#
++# CONFIG_DAB is not set
++
++#
++# Graphics support
++#
++# CONFIG_VGASTATE is not set
++# CONFIG_VIDEO_OUTPUT_CONTROL is not set
++CONFIG_FB=y
++# CONFIG_FIRMWARE_EDID is not set
++# CONFIG_FB_DDC is not set
++# CONFIG_FB_CFB_FILLRECT is not set
++# CONFIG_FB_CFB_COPYAREA is not set
++# CONFIG_FB_CFB_IMAGEBLIT is not set
++# CONFIG_FB_CFB_REV_PIXELS_IN_BYTE is not set
++# CONFIG_FB_SYS_FILLRECT is not set
++# CONFIG_FB_SYS_COPYAREA is not set
++# CONFIG_FB_SYS_IMAGEBLIT is not set
++# CONFIG_FB_FOREIGN_ENDIAN is not set
++# CONFIG_FB_SYS_FOPS is not set
++# CONFIG_FB_SVGALIB is not set
++# CONFIG_FB_MACMODES is not set
++# CONFIG_FB_BACKLIGHT is not set
++# CONFIG_FB_MODE_HELPERS is not set
++# CONFIG_FB_TILEBLITTING is not set
++
++#
++# Frame buffer hardware drivers
++#
++# CONFIG_FB_S1D15605 is not set
++# CONFIG_FB_S1D13XXX is not set
++# CONFIG_FB_VIRTUAL is not set
++CONFIG_BACKLIGHT_LCD_SUPPORT=y
++CONFIG_LCD_CLASS_DEVICE=y
++# CONFIG_LCD_LTV350QV is not set
++# CONFIG_LCD_ILI9320 is not set
++# CONFIG_LCD_VGG2432A4 is not set
++# CONFIG_LCD_PLATFORM is not set
++CONFIG_BACKLIGHT_CLASS_DEVICE=y
++# CONFIG_BACKLIGHT_CORGI is not set
++
++#
++# Display device support
++#
++CONFIG_DISPLAY_SUPPORT=y
++
++#
++# Display hardware drivers
++#
++
++#
++# Console display driver support
++#
++# CONFIG_VGA_CONSOLE is not set
++CONFIG_DUMMY_CONSOLE=y
++CONFIG_FRAMEBUFFER_CONSOLE=y
++# CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY is not set
++# CONFIG_FRAMEBUFFER_CONSOLE_ROTATION is not set
++# CONFIG_FONTS is not set
++CONFIG_FONT_8x8=y
++CONFIG_FONT_8x16=y
++# CONFIG_LOGO is not set
++# CONFIG_SOUND is not set
++CONFIG_HID_SUPPORT=y
++CONFIG_HID=y
++# CONFIG_HID_DEBUG is not set
++# CONFIG_HIDRAW is not set
++
++#
++# USB Input Devices
++#
++CONFIG_USB_HID=y
++# CONFIG_USB_HIDINPUT_POWERBOOK is not set
++# CONFIG_HID_FF is not set
++# CONFIG_USB_HIDDEV is not set
++CONFIG_USB_SUPPORT=y
++CONFIG_USB_ARCH_HAS_HCD=y
++CONFIG_USB_ARCH_HAS_OHCI=y
++# CONFIG_USB_ARCH_HAS_EHCI is not set
++CONFIG_USB=y
++# CONFIG_USB_DEBUG is not set
++# CONFIG_USB_ANNOUNCE_NEW_DEVICES is not set
++
++#
++# Miscellaneous USB options
++#
++CONFIG_USB_DEVICEFS=y
++# CONFIG_USB_DEVICE_CLASS is not set
++# CONFIG_USB_DYNAMIC_MINORS is not set
++# CONFIG_USB_OTG is not set
++# CONFIG_USB_OTG_WHITELIST is not set
++# CONFIG_USB_OTG_BLACKLIST_HUB is not set
++CONFIG_USB_MON=y
++
++#
++# USB Host Controller Drivers
++#
++# CONFIG_USB_C67X00_HCD is not set
++# CONFIG_USB_ISP116X_HCD is not set
++# CONFIG_USB_ISP1760_HCD is not set
++CONFIG_USB_OHCI_HCD=y
++# CONFIG_USB_OHCI_BIG_ENDIAN_DESC is not set
++# CONFIG_USB_OHCI_BIG_ENDIAN_MMIO is not set
++CONFIG_USB_OHCI_LITTLE_ENDIAN=y
++# CONFIG_USB_SL811_HCD is not set
++# CONFIG_USB_R8A66597_HCD is not set
++# CONFIG_USB_MUSB_HDRC is not set
++# CONFIG_USB_GADGET_MUSB_HDRC is not set
++
++#
++# USB Device Class drivers
++#
++# CONFIG_USB_ACM is not set
++# CONFIG_USB_PRINTER is not set
++# CONFIG_USB_WDM is not set
++
++#
++# NOTE: USB_STORAGE enables SCSI, and 'SCSI disk support'
++#
++
++#
++# may also be needed; see USB_STORAGE Help for more information
++#
++CONFIG_USB_STORAGE=y
++# CONFIG_USB_STORAGE_DEBUG is not set
++# CONFIG_USB_STORAGE_DATAFAB is not set
++# CONFIG_USB_STORAGE_FREECOM is not set
++# CONFIG_USB_STORAGE_ISD200 is not set
++# CONFIG_USB_STORAGE_DPCM is not set
++# CONFIG_USB_STORAGE_USBAT is not set
++# CONFIG_USB_STORAGE_SDDR09 is not set
++# CONFIG_USB_STORAGE_SDDR55 is not set
++# CONFIG_USB_STORAGE_JUMPSHOT is not set
++# CONFIG_USB_STORAGE_ALAUDA is not set
++# CONFIG_USB_STORAGE_ONETOUCH is not set
++# CONFIG_USB_STORAGE_KARMA is not set
++# CONFIG_USB_STORAGE_CYPRESS_ATACB is not set
++# CONFIG_USB_LIBUSUAL is not set
++
++#
++# USB Imaging devices
++#
++# CONFIG_USB_MDC800 is not set
++# CONFIG_USB_MICROTEK is not set
++
++#
++# USB port drivers
++#
++# CONFIG_USB_SERIAL is not set
++
++#
++# USB Miscellaneous drivers
++#
++# CONFIG_USB_EMI62 is not set
++# CONFIG_USB_EMI26 is not set
++# CONFIG_USB_ADUTUX is not set
++# CONFIG_USB_RIO500 is not set
++# CONFIG_USB_LEGOTOWER is not set
++# CONFIG_USB_LCD is not set
++# CONFIG_USB_BERRY_CHARGE is not set
++# CONFIG_USB_LED is not set
++# CONFIG_USB_CYPRESS_CY7C63 is not set
++# CONFIG_USB_CYTHERM is not set
++# CONFIG_USB_PHIDGET is not set
++# CONFIG_USB_IDMOUSE is not set
++# CONFIG_USB_FTDI_ELAN is not set
++# CONFIG_USB_APPLEDISPLAY is not set
++# CONFIG_USB_LD is not set
++# CONFIG_USB_TRANCEVIBRATOR is not set
++# CONFIG_USB_IOWARRIOR is not set
++# CONFIG_USB_TEST is not set
++# CONFIG_USB_ISIGHTFW is not set
++CONFIG_USB_GADGET=y
++# CONFIG_USB_GADGET_DEBUG_FILES is not set
++CONFIG_USB_GADGET_SELECTED=y
++# CONFIG_USB_GADGET_AMD5536UDC is not set
++# CONFIG_USB_GADGET_ATMEL_USBA is not set
++# CONFIG_USB_GADGET_FSL_USB2 is not set
++# CONFIG_USB_GADGET_NET2280 is not set
++# CONFIG_USB_GADGET_PXA25X is not set
++# CONFIG_USB_GADGET_M66592 is not set
++# CONFIG_USB_GADGET_PXA27X is not set
++# CONFIG_USB_GADGET_GOKU is not set
++# CONFIG_USB_GADGET_LH7A40X is not set
++# CONFIG_USB_GADGET_OMAP is not set
++# CONFIG_USB_GADGET_S3C2410 is not set
++CONFIG_USB_GADGET_AT91=y
++CONFIG_USB_AT91=y
++# CONFIG_USB_GADGET_DUMMY_HCD is not set
++# CONFIG_USB_GADGET_DUALSPEED is not set
++CONFIG_USB_ZERO=m
++# CONFIG_USB_ETH is not set
++CONFIG_USB_GADGETFS=m
++CONFIG_USB_FILE_STORAGE=m
++# CONFIG_USB_FILE_STORAGE_TEST is not set
++CONFIG_USB_G_SERIAL=m
++# CONFIG_USB_MIDI_GADGET is not set
++# CONFIG_USB_G_PRINTER is not set
++# CONFIG_USB_CDC_COMPOSITE is not set
++CONFIG_MMC=y
++# CONFIG_MMC_DEBUG is not set
++# CONFIG_MMC_UNSAFE_RESUME is not set
++
++#
++# MMC/SD Card Drivers
++#
++CONFIG_MMC_BLOCK=y
++CONFIG_MMC_BLOCK_BOUNCE=y
++# CONFIG_SDIO_UART is not set
++# CONFIG_MMC_TEST is not set
++
++#
++# MMC/SD Host Controller Drivers
++#
++# CONFIG_MMC_SDHCI is not set
++CONFIG_MMC_AT91=y
++# CONFIG_MMC_SPI is not set
++CONFIG_NEW_LEDS=y
++CONFIG_LEDS_CLASS=y
++
++#
++# LED drivers
++#
++# CONFIG_LEDS_PCA9532 is not set
++CONFIG_LEDS_GPIO=y
++# CONFIG_LEDS_PCA955X is not set
++
++#
++# LED Triggers
++#
++CONFIG_LEDS_TRIGGERS=y
++CONFIG_LEDS_TRIGGER_TIMER=y
++CONFIG_LEDS_TRIGGER_HEARTBEAT=y
++# CONFIG_LEDS_TRIGGER_DEFAULT_ON is not set
++CONFIG_RTC_LIB=y
++CONFIG_RTC_CLASS=y
++CONFIG_RTC_HCTOSYS=y
++CONFIG_RTC_HCTOSYS_DEVICE="rtc0"
++# CONFIG_RTC_DEBUG is not set
++
++#
++# RTC interfaces
++#
++CONFIG_RTC_INTF_SYSFS=y
++CONFIG_RTC_INTF_PROC=y
++CONFIG_RTC_INTF_DEV=y
++# CONFIG_RTC_INTF_DEV_UIE_EMUL is not set
++# CONFIG_RTC_DRV_TEST is not set
++
++#
++# I2C RTC drivers
++#
++# CONFIG_RTC_DRV_DS1307 is not set
++# CONFIG_RTC_DRV_DS1374 is not set
++CONFIG_RTC_DRV_DS1672=y
++# CONFIG_RTC_DRV_MAX6900 is not set
++# CONFIG_RTC_DRV_RS5C372 is not set
++# CONFIG_RTC_DRV_ISL1208 is not set
++# CONFIG_RTC_DRV_X1205 is not set
++# CONFIG_RTC_DRV_PCF8563 is not set
++# CONFIG_RTC_DRV_PCF8583 is not set
++# CONFIG_RTC_DRV_M41T80 is not set
++# CONFIG_RTC_DRV_S35390A is not set
++# CONFIG_RTC_DRV_FM3130 is not set
++
++#
++# SPI RTC drivers
++#
++# CONFIG_RTC_DRV_M41T94 is not set
++# CONFIG_RTC_DRV_DS1305 is not set
++# CONFIG_RTC_DRV_MAX6902 is not set
++# CONFIG_RTC_DRV_R9701 is not set
++# CONFIG_RTC_DRV_RS5C348 is not set
++
++#
++# Platform RTC drivers
++#
++# CONFIG_RTC_DRV_CMOS is not set
++# CONFIG_RTC_DRV_DS1511 is not set
++# CONFIG_RTC_DRV_DS1553 is not set
++# CONFIG_RTC_DRV_DS1742 is not set
++# CONFIG_RTC_DRV_STK17TA8 is not set
++# CONFIG_RTC_DRV_M48T86 is not set
++# CONFIG_RTC_DRV_M48T59 is not set
++# CONFIG_RTC_DRV_V3020 is not set
++
++#
++# on-CPU RTC drivers
++#
++# CONFIG_RTC_DRV_AT91SAM9 is not set
++# CONFIG_DMADEVICES is not set
++
++#
++# Voltage and Current regulators
++#
++# CONFIG_REGULATOR is not set
++# CONFIG_REGULATOR_FIXED_VOLTAGE is not set
++# CONFIG_REGULATOR_VIRTUAL_CONSUMER is not set
++# CONFIG_REGULATOR_BQ24022 is not set
++# CONFIG_UIO is not set
++
++#
++# File systems
++#
++CONFIG_EXT2_FS=y
++# CONFIG_EXT2_FS_XATTR is not set
++# CONFIG_EXT2_FS_XIP is not set
++# CONFIG_EXT3_FS is not set
++# CONFIG_EXT4DEV_FS is not set
++# CONFIG_REISERFS_FS is not set
++# CONFIG_JFS_FS is not set
++# CONFIG_FS_POSIX_ACL is not set
++# CONFIG_XFS_FS is not set
++# CONFIG_OCFS2_FS is not set
++CONFIG_DNOTIFY=y
++CONFIG_INOTIFY=y
++CONFIG_INOTIFY_USER=y
++# CONFIG_QUOTA is not set
++# CONFIG_AUTOFS_FS is not set
++# CONFIG_AUTOFS4_FS is not set
++# CONFIG_FUSE_FS is not set
++
++#
++# CD-ROM/DVD Filesystems
++#
++# CONFIG_ISO9660_FS is not set
++# CONFIG_UDF_FS is not set
++
++#
++# DOS/FAT/NT Filesystems
++#
++CONFIG_FAT_FS=y
++CONFIG_MSDOS_FS=y
++CONFIG_VFAT_FS=y
++CONFIG_FAT_DEFAULT_CODEPAGE=437
++CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
++# CONFIG_NTFS_FS is not set
++
++#
++# Pseudo filesystems
++#
++CONFIG_PROC_FS=y
++CONFIG_PROC_SYSCTL=y
++CONFIG_SYSFS=y
++CONFIG_TMPFS=y
++# CONFIG_TMPFS_POSIX_ACL is not set
++# CONFIG_HUGETLB_PAGE is not set
++# CONFIG_CONFIGFS_FS is not set
++
++#
++# Miscellaneous filesystems
++#
++# CONFIG_ADFS_FS is not set
++# CONFIG_AFFS_FS is not set
++# CONFIG_HFS_FS is not set
++# CONFIG_HFSPLUS_FS is not set
++# CONFIG_BEFS_FS is not set
++# CONFIG_BFS_FS is not set
++# CONFIG_EFS_FS is not set
++CONFIG_JFFS2_FS=y
++CONFIG_JFFS2_FS_DEBUG=0
++CONFIG_JFFS2_FS_WRITEBUFFER=y
++# CONFIG_JFFS2_FS_WBUF_VERIFY is not set
++# CONFIG_JFFS2_SUMMARY is not set
++# CONFIG_JFFS2_FS_XATTR is not set
++# CONFIG_JFFS2_COMPRESSION_OPTIONS is not set
++CONFIG_JFFS2_ZLIB=y
++# CONFIG_JFFS2_LZO is not set
++CONFIG_JFFS2_RTIME=y
++# CONFIG_JFFS2_RUBIN is not set
++CONFIG_CRAMFS=y
++# CONFIG_VXFS_FS is not set
++# CONFIG_MINIX_FS is not set
++# CONFIG_OMFS_FS is not set
++# CONFIG_HPFS_FS is not set
++# CONFIG_QNX4FS_FS is not set
++# CONFIG_ROMFS_FS is not set
++# CONFIG_SYSV_FS is not set
++# CONFIG_UFS_FS is not set
++CONFIG_NETWORK_FILESYSTEMS=y
++CONFIG_NFS_FS=y
++CONFIG_NFS_V3=y
++# CONFIG_NFS_V3_ACL is not set
++# CONFIG_NFS_V4 is not set
++CONFIG_ROOT_NFS=y
++# CONFIG_NFSD is not set
++CONFIG_LOCKD=y
++CONFIG_LOCKD_V4=y
++CONFIG_NFS_COMMON=y
++CONFIG_SUNRPC=y
++# CONFIG_RPCSEC_GSS_KRB5 is not set
++# CONFIG_RPCSEC_GSS_SPKM3 is not set
++# CONFIG_SMB_FS is not set
++# CONFIG_CIFS is not set
++# CONFIG_NCP_FS is not set
++# CONFIG_CODA_FS is not set
++# CONFIG_AFS_FS is not set
++
++#
++# Partition Types
++#
++# CONFIG_PARTITION_ADVANCED is not set
++CONFIG_MSDOS_PARTITION=y
++CONFIG_NLS=y
++CONFIG_NLS_DEFAULT="iso8859-1"
++CONFIG_NLS_CODEPAGE_437=y
++# CONFIG_NLS_CODEPAGE_737 is not set
++# CONFIG_NLS_CODEPAGE_775 is not set
++CONFIG_NLS_CODEPAGE_850=y
++# CONFIG_NLS_CODEPAGE_852 is not set
++# CONFIG_NLS_CODEPAGE_855 is not set
++# CONFIG_NLS_CODEPAGE_857 is not set
++# CONFIG_NLS_CODEPAGE_860 is not set
++# CONFIG_NLS_CODEPAGE_861 is not set
++# CONFIG_NLS_CODEPAGE_862 is not set
++# CONFIG_NLS_CODEPAGE_863 is not set
++# CONFIG_NLS_CODEPAGE_864 is not set
++# CONFIG_NLS_CODEPAGE_865 is not set
++# CONFIG_NLS_CODEPAGE_866 is not set
++# CONFIG_NLS_CODEPAGE_869 is not set
++# CONFIG_NLS_CODEPAGE_936 is not set
++# CONFIG_NLS_CODEPAGE_950 is not set
++# CONFIG_NLS_CODEPAGE_932 is not set
++# CONFIG_NLS_CODEPAGE_949 is not set
++# CONFIG_NLS_CODEPAGE_874 is not set
++# CONFIG_NLS_ISO8859_8 is not set
++# CONFIG_NLS_CODEPAGE_1250 is not set
++# CONFIG_NLS_CODEPAGE_1251 is not set
++# CONFIG_NLS_ASCII is not set
++CONFIG_NLS_ISO8859_1=y
++# CONFIG_NLS_ISO8859_2 is not set
++# CONFIG_NLS_ISO8859_3 is not set
++# CONFIG_NLS_ISO8859_4 is not set
++# CONFIG_NLS_ISO8859_5 is not set
++# CONFIG_NLS_ISO8859_6 is not set
++# CONFIG_NLS_ISO8859_7 is not set
++# CONFIG_NLS_ISO8859_9 is not set
++# CONFIG_NLS_ISO8859_13 is not set
++# CONFIG_NLS_ISO8859_14 is not set
++CONFIG_NLS_ISO8859_15=y
++# CONFIG_NLS_KOI8_R is not set
++# CONFIG_NLS_KOI8_U is not set
++CONFIG_NLS_UTF8=y
++# CONFIG_DLM is not set
++
++#
++# Kernel hacking
++#
++# CONFIG_PRINTK_TIME is not set
++CONFIG_ENABLE_WARN_DEPRECATED=y
++CONFIG_ENABLE_MUST_CHECK=y
++CONFIG_FRAME_WARN=1024
++# CONFIG_MAGIC_SYSRQ is not set
++# CONFIG_UNUSED_SYMBOLS is not set
++# CONFIG_DEBUG_FS is not set
++# CONFIG_HEADERS_CHECK is not set
++# CONFIG_DEBUG_KERNEL is not set
++# CONFIG_DEBUG_BUGVERBOSE is not set
++# CONFIG_DEBUG_MEMORY_INIT is not set
++CONFIG_FRAME_POINTER=y
++# CONFIG_LATENCYTOP is not set
++# CONFIG_SYSCTL_SYSCALL_CHECK is not set
++CONFIG_HAVE_FTRACE=y
++CONFIG_HAVE_DYNAMIC_FTRACE=y
++# CONFIG_FTRACE is not set
++# CONFIG_IRQSOFF_TRACER is not set
++# CONFIG_PREEMPT_TRACER is not set
++# CONFIG_SCHED_TRACER is not set
++# CONFIG_CONTEXT_SWITCH_TRACER is not set
++# CONFIG_SAMPLES is not set
++CONFIG_HAVE_ARCH_KGDB=y
++CONFIG_DEBUG_USER=y
++
++#
++# Security options
++#
++# CONFIG_KEYS is not set
++# CONFIG_SECURITY is not set
++# CONFIG_SECURITY_FILE_CAPABILITIES is not set
++# CONFIG_CRYPTO is not set
++
++#
++# Library routines
++#
++CONFIG_BITREVERSE=y
++# CONFIG_GENERIC_FIND_FIRST_BIT is not set
++# CONFIG_GENERIC_FIND_NEXT_BIT is not set
++# CONFIG_CRC_CCITT is not set
++# CONFIG_CRC16 is not set
++CONFIG_CRC_T10DIF=y
++# CONFIG_CRC_ITU_T is not set
++CONFIG_CRC32=y
++# CONFIG_CRC7 is not set
++# CONFIG_LIBCRC32C is not set
++CONFIG_ZLIB_INFLATE=y
++CONFIG_ZLIB_DEFLATE=y
++CONFIG_PLIST=y
++CONFIG_HAS_IOMEM=y
++CONFIG_HAS_IOPORT=y
++CONFIG_HAS_DMA=y
+diff --git a/arch/arm/mach-at91/Kconfig b/arch/arm/mach-at91/Kconfig
+index f10a26c..8b86c50 100644
+--- a/arch/arm/mach-at91/Kconfig
++++ b/arch/arm/mach-at91/Kconfig
+@@ -299,6 +299,13 @@ config MACH_AT91SAM9G20EK
+ 	help
+ 	  Select this if you are using Atmel's AT91SAM9G20-EK Evaluation Kit.
+ 
++config MACH_MRFSA
++	bool "Embedtronics MRFSA Evaluation Kit"
++	depends on ARCH_AT91SAM9G20
++	help
++	  Select this if you are using Embedtronics's MRFSA Evaluation Kit
++	  <http://www.embedtronics.fi/products/mrfsa/>
++
+ endif
+ 
+ # ----------------------------------------------------------
+@@ -338,7 +345,7 @@ comment "AT91 Board Options"
+ 
+ config MTD_AT91_DATAFLASH_CARD
+ 	bool "Enable DataFlash Card support"
+-	depends on (ARCH_AT91RM9200DK || MACH_AT91RM9200EK || MACH_AT91SAM9260EK || MACH_AT91SAM9261EK || MACH_AT91SAM9263EK || MACH_AT91SAM9G20EK || MACH_ECBAT91 || MACH_SAM9_L9260 || MACH_AT91CAP9ADK || MACH_TOTEMNOVA || MACH_NEOCORE926)
++	depends on (ARCH_AT91RM9200DK || MACH_AT91RM9200EK || MACH_AT91SAM9260EK || MACH_AT91SAM9261EK || MACH_AT91SAM9263EK || MACH_AT91SAM9G20EK || MACH_MRFSA || MACH_ECBAT91 || MACH_SAM9_L9260 || MACH_AT91CAP9ADK || MACH_TOTEMNOVA || MACH_NEOCORE926)
+ 	help
+ 	  Enable support for the DataFlash card.
+ 
+diff --git a/arch/arm/mach-at91/Makefile b/arch/arm/mach-at91/Makefile
+index 9095c0e..24559a6 100644
+--- a/arch/arm/mach-at91/Makefile
++++ b/arch/arm/mach-at91/Makefile
+@@ -66,6 +66,9 @@ obj-$(CONFIG_MACH_AT91CAP9ADK)	+= board-cap9adk.o
+ # AT91X40 board-specific support
+ obj-$(CONFIG_MACH_AT91EB01)	+= board-eb01.o
+ 
++# MRFSA board-specific support
++obj-$(CONFIG_MACH_MRFSA)	+= board-mrfsa.o
++
+ # Drivers
+ obj-y				+= leds.o
+ obj-$(CONFIG_FB_S1D13XXX)	+= ics1523.o
+diff --git a/arch/arm/mach-at91/board-mrfsa.c b/arch/arm/mach-at91/board-mrfsa.c
+new file mode 100644
+index 0000000..9b9c21a
+--- /dev/null
++++ b/arch/arm/mach-at91/board-mrfsa.c
+@@ -0,0 +1,316 @@
++/*	$Id: board-mrfsa.c,v 1.4 2009/06/19 19:24:29 skanto Exp $	*/
++
++/*
++ *  Copyright (C) 2005 SAN People
++ *  Copyright (C) 2008 Atmel
++ *  Copyright (C) 2009 Embedtronics OY
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ */
++
++#include <linux/types.h>
++#include <linux/init.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/spi/spi.h>
++#include <linux/clk.h>
++#include <linux/i2c-gpio.h>
++
++#include <mach/hardware.h>
++#include <asm/setup.h>
++#include <asm/mach-types.h>
++#include <asm/irq.h>
++#include <asm/gpio.h>
++
++#include <asm/mach/arch.h>
++#include <asm/mach/map.h>
++#include <asm/mach/irq.h>
++#include <asm/mach/serial_at91.h>
++
++#include <mach/board.h>
++#include <mach/gpio.h>
++#include <linux/gpio_keys.h>
++#include <linux/input.h>
++#include <mach/at91sam9_smc.h>
++
++#include "sam9_smc.h"
++#include "generic.h"
++
++#include <linux/serial_core.h>
++
++#define	USART_DBGU	0
++#define	USART_SER1	AT91SAM9260_ID_US0
++#define	USART_SER2	AT91SAM9260_ID_US1
++#define	USART_SER3	AT91SAM9260_ID_US5
++#define	USART_GSM	AT91SAM9260_ID_US2
++#define	USART_GSM_DBG	AT91SAM9260_ID_US3
++#define	USART_GPS	AT91SAM9260_ID_US4
++
++#define	TTYS_DBGU	0
++#define	TTYS_SER1	1
++#define	TTYS_SER2	2
++#define	TTYS_SER3	3
++#define	TTYS_GSM	4
++#define	TTYS_GPS	5
++#define	TTYS_GSM_DBG	6
++
++static int mrfsa_uart_open(struct uart_port *port)
++{
++	printk(KERN_INFO "%s: line=%u\n", __func__, port->line);
++	switch (port->line) {
++	case TTYS_GSM:
++	case TTYS_GSM_DBG:
++	case TTYS_GPS:
++	  break;
++	}
++	return 0;
++}
++
++static void mrfsa_uart_close(struct uart_port *port)
++{
++	printk(KERN_INFO "%s: line=%u\n", __func__, port->line);
++	switch (port->line) {
++	case TTYS_GSM:
++	case TTYS_GSM_DBG:
++	case TTYS_GPS:
++	  break;
++	}
++}
++
++static struct atmel_port_fns atmel_uart_port_fns = {
++	.open		= mrfsa_uart_open,
++	.close		= mrfsa_uart_close,
++};
++
++static void __init mrfsa_map_io(void)
++{
++	/* Initialize processor: 20.000 MHz crystal */
++	at91sam9260_initialize(20000000);
++
++	/* DGBU on ttyS0. (Rx & Tx only) */
++	at91_register_uart(USART_DBGU, TTYS_DBGU, 0);
++
++	/* register handlers.. */
++	atmel_register_uart_fns(&atmel_uart_port_fns);
++
++	/* USART0 on ttyS1. (Rx, Tx, CTS, RTS, DTR, DSR, DCD, RI) */
++	at91_register_uart(USART_SER1, TTYS_SER1, ATMEL_UART_CTS | ATMEL_UART_RTS
++			   | ATMEL_UART_DTR | ATMEL_UART_DSR | ATMEL_UART_DCD
++			   | ATMEL_UART_RI);
++
++	/* USART1 on ttyS2. (Rx, Tx, RTS, CTS) */
++	at91_register_uart(USART_SER2, TTYS_SER2, ATMEL_UART_CTS | ATMEL_UART_RTS);
++
++	/* USART5 on ttyS3. (Rx, Tx) */
++	at91_register_uart(USART_SER3, TTYS_SER3, 0);
++
++	/* USART2 on ttyS4. (Rx, Tx, RTS, CTS) */
++	at91_register_uart(USART_GSM, TTYS_GSM, ATMEL_UART_CTS | ATMEL_UART_RTS);
++
++	/* USART4 on ttyS5. (Rx, Tx) */
++	at91_register_uart(USART_GPS, TTYS_GPS, 0);
++
++	/* USART3 on ttyS6. (Rx, Tx) */
++	at91_register_uart(USART_GSM_DBG, TTYS_GSM_DBG, 0);
++
++	/* set serial console to ttyS0 (ie, DBGU) */
++	at91_set_serial_console(TTYS_DBGU);
++}
++
++static void __init mrfsa_init_irq(void)
++{
++	at91sam9260_init_interrupts(NULL);
++}
++
++
++/*
++ * USB Host port
++ */
++static struct at91_usbh_data __initdata mrfsa_usbh_data = {
++	.ports		= 2,
++	.vbus_pin	= {0, 0},
++};
++
++/*
++ * USB Device port
++ */
++static struct at91_udc_data __initdata mrfsa_udc_data = {
++	.vbus_pin	= AT91_PIN_PC5,
++	.pullup_pin	= 0,		/* pull-up driven by UDC */
++};
++
++
++/*
++ * SPI devices.
++ */
++static struct spi_board_info mrfsa_spi_devices[] = {
++	{	/* DataFlash chip */
++		.modalias	= "mtd_dataflash",
++		.chip_select	= 0,
++		.max_speed_hz	= 15 * 1000 * 1000,
++		.bus_num	= 0,
++	},
++	{	/* DataFlash card */
++		.modalias	= "mtd_dataflash",
++		.chip_select	= 1,
++		.max_speed_hz	= 15 * 1000 * 1000,
++		.bus_num	= 0,
++	},
++	{	/* KS8995MA switch */
++		.modalias	= "spi-ks8995",
++		.chip_select	= 2,
++		.max_speed_hz	= 10 * 1000 * 1000,
++		.bus_num	= 0,
++		.controller_data= (void*)AT91_PIN_PB30,
++	},
++#if 0
++	{	/* ZB */
++		.modalias	= "spi-cc2420",
++		.chip_select	= 3,
++		.max_speed_hz	= 10 * 1000 * 1000,
++		.bus_num	= 0,
++		.controller_data= (void*)AT91_PIN_PB31,
++	},
++#endif
++	{	/* GPIO */
++		.modalias	= "spi-gpio",
++		.chip_select	= 3,
++		.max_speed_hz	= 10 * 1000 * 1000,
++		.bus_num	= 0,
++		.controller_data= (void*)AT91_PIN_PB17,
++	},
++	{	/* extension */
++		.modalias	= "spi-gpio",
++		.chip_select	= 0,
++		.max_speed_hz	= 10 * 1000 * 1000,
++		.bus_num	= 1,
++		.controller_data= (void*)AT91_PIN_PB3,
++	},
++};
++
++
++/*
++ * I2C device
++ */
++
++static struct i2c_gpio_platform_data i2c_pdata = {
++	.sda_pin		= AT91_PIN_PC2,
++	.sda_is_open_drain	= 1,
++	.scl_pin		= AT91_PIN_PC3,
++	.scl_is_open_drain	= 1,
++	.udelay			= 2,		/* ~100 kHz */
++};
++
++static struct platform_device mrfsa_i2c_device = {
++	.name			= "i2c-gpio",
++	.id			= -1,
++	.dev.platform_data	= &i2c_pdata,
++};
++
++static struct i2c_board_info mrfsa_i2c_devices[] = {
++	{
++		I2C_BOARD_INFO("24c02", 0x50)
++	},
++	{
++		I2C_BOARD_INFO("ds1672", 0x68)
++	},
++};
++
++/*
++ * MACB Ethernet device
++ */
++static struct at91_eth_data __initdata mrfsa_macb_data = {
++	.phy_mask	= 0,
++//	.phy_irq_pin	= AT91_PIN_PA7,
++	.is_rmii	= 0,
++};
++
++
++/*
++ * MCI (SD/MMC)
++ * det_pin, wp_pin and vcc_pin are not connected
++ */
++static struct at91_mmc_data __initdata mrfsa_mmc_data = {
++	.det_pin	= AT91_PIN_PB25,
++	.slot_b		= 0,
++	.wire4		= 1,
++	.wp_pin		= AT91_PIN_PB21,
++};
++
++
++/*
++ * LEDs
++ */
++static struct gpio_led mrfsa_leds[] = {
++#if 0
++	{	/* "bottom" led, green, userled1 to be defined */
++		.name			= "ds5",
++		.gpio			= AT91_PIN_PA6,
++		.active_low		= 1,
++		.default_trigger	= "none",
++	},
++	{	/* "power" led, yellow */
++		.name			= "ds1",
++		.gpio			= AT91_PIN_PA9,
++		.default_trigger	= "heartbeat",
++	}
++#endif
++};
++
++/*
++ * GPIO Buttons
++ */
++static void __init mrfsa_add_device_buttons(void) {}
++
++static void __init mrfsa_board_init(void)
++{
++	/* Serial */
++	at91_add_device_serial();
++	/* USB Host */
++	at91_add_device_usbh(&mrfsa_usbh_data);
++	/* USB Device */
++	at91_add_device_udc(&mrfsa_udc_data);
++	/* SPI */
++	at91_add_device_spi(mrfsa_spi_devices, ARRAY_SIZE(mrfsa_spi_devices));
++	/* I2C */
++	at91_set_GPIO_periph(AT91_PIN_PC3, 1);		/* SCL */
++	at91_set_multi_drive(AT91_PIN_PC3, 1);
++	at91_set_GPIO_periph(AT91_PIN_PC2, 1);		/* SDA */
++	at91_set_multi_drive(AT91_PIN_PC2, 1);
++	i2c_register_board_info(0, mrfsa_i2c_devices, ARRAY_SIZE(mrfsa_i2c_devices));
++	platform_device_register(&mrfsa_i2c_device);
++	/* Ethernet */
++	at91_add_device_eth(&mrfsa_macb_data);
++	/* MMC */
++	at91_add_device_mmc(0, &mrfsa_mmc_data);
++	/* SSC */
++	at91_add_device_ssc(AT91SAM9260_ID_SSC, ATMEL_SSC_TX);
++	/* LEDs */
++	at91_gpio_leds(mrfsa_leds, ARRAY_SIZE(mrfsa_leds));
++	/* Push Buttons */
++	mrfsa_add_device_buttons();
++}
++
++MACHINE_START(MRFSA, "Embedtronics MRFSA")
++	/* Maintainer: Embedtronics Oy */
++	.phys_io	= AT91_BASE_SYS,
++	.io_pg_offst	= (AT91_VA_BASE_SYS >> 18) & 0xfffc,
++	.boot_params	= AT91_SDRAM_BASE + 0x100,
++	.timer		= &at91sam926x_timer,
++	.map_io		= mrfsa_map_io,
++	.init_irq	= mrfsa_init_irq,
++	.init_machine	= mrfsa_board_init,
++MACHINE_END
+diff --git a/arch/arm/tools/mach-types b/arch/arm/tools/mach-types
+index 56281c0..c027e49 100644
+--- a/arch/arm/tools/mach-types
++++ b/arch/arm/tools/mach-types
+@@ -1861,3 +1861,4 @@ a636n			MACH_A636N		A636N			1870
+ imx27ipcam		MACH_IMX27IPCAM		IMX27IPCAM		1871
+ nenoc			MACH_NEMOC		NEMOC			1872
+ geneva			MACH_GENEVA		GENEVA			1873
++mrfsa			MACH_MRFSA		MRFSA			1874
+diff --git a/drivers/rtc/rtc-ds1672.c b/drivers/rtc/rtc-ds1672.c
+index 6fa4556..65d6d1b 100644
+--- a/drivers/rtc/rtc-ds1672.c
++++ b/drivers/rtc/rtc-ds1672.c
+@@ -30,7 +30,8 @@ I2C_CLIENT_INSMOD;
+ #define DS1672_REG_CONTROL_EOSC	0x80
+ 
+ /* Prototypes */
+-static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind);
++static int ds1672_probe(struct i2c_client *client, const struct i2c_device_id *id);
++/*static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind);*/
+ 
+ /*
+  * In the routines that deal directly with the ds1672 hardware, we use
+@@ -162,12 +163,7 @@ static const struct rtc_class_ops ds1672_rtc_ops = {
+ 	.set_mmss	= ds1672_rtc_set_mmss,
+ };
+ 
+-static int ds1672_attach(struct i2c_adapter *adapter)
+-{
+-	return i2c_probe(adapter, &addr_data, ds1672_probe);
+-}
+-
+-static int ds1672_detach(struct i2c_client *client)
++static int __devexit ds1672_remove(struct i2c_client *client)
+ {
+ 	int err;
+ 	struct rtc_device *rtc = i2c_get_clientdata(client);
+@@ -183,53 +179,45 @@ static int ds1672_detach(struct i2c_client *client)
+ 	return 0;
+ }
+ 
++static const struct i2c_device_id ds1672_ids[] = {
++	{ "ds1672" },
++	{ /* END OF LIST */ }
++};
++MODULE_DEVICE_TABLE(i2c, ds1672_ids);
++
+ static struct i2c_driver ds1672_driver = {
+ 	.driver		= {
+ 		.name	= "ds1672",
++		.owner	= THIS_MODULE,
+ 	},
+-	.id		= I2C_DRIVERID_DS1672,
+-	.attach_adapter = &ds1672_attach,
+-	.detach_client	= &ds1672_detach,
++	.probe		= ds1672_probe,
++	.remove		= __devexit_p(ds1672_remove),
++	.id_table	= ds1672_ids,
+ };
+ 
+-static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind)
++static int ds1672_probe(struct i2c_client *client, const struct i2c_device_id *id)
+ {
+ 	int err = 0;
+ 	u8 control;
+-	struct i2c_client *client;
+ 	struct rtc_device *rtc;
+ 
+-	dev_dbg(&adapter->dev, "%s\n", __func__);
++	dev_dbg(&client->adapter->dev, "%s\n", __func__);
+ 
+-	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C)) {
++	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+ 		err = -ENODEV;
+ 		goto exit;
+ 	}
+ 
+-	if (!(client = kzalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
+-		err = -ENOMEM;
+-		goto exit;
+-	}
+-
+ 	/* I2C client */
+-	client->addr = address;
+-	client->driver = &ds1672_driver;
+-	client->adapter	= adapter;
+-
+-	strlcpy(client->name, ds1672_driver.driver.name, I2C_NAME_SIZE);
+-
+-	/* Inform the i2c layer */
+-	if ((err = i2c_attach_client(client)))
+-		goto exit_kfree;
+-
+ 	dev_info(&client->dev, "chip found, driver version " DRV_VERSION "\n");
+ 
++	/* register RTC device */
+ 	rtc = rtc_device_register(ds1672_driver.driver.name, &client->dev,
+ 				&ds1672_rtc_ops, THIS_MODULE);
+ 
+ 	if (IS_ERR(rtc)) {
+ 		err = PTR_ERR(rtc);
+-		goto exit_detach;
++		goto exit;
+ 	}
+ 
+ 	i2c_set_clientdata(client, rtc);
+@@ -253,12 +241,6 @@ static int ds1672_probe(struct i2c_adapter *adapter, int address, int kind)
+ exit_devreg:
+ 	rtc_device_unregister(rtc);
+ 
+-exit_detach:
+-	i2c_detach_client(client);
+-
+-exit_kfree:
+-	kfree(client);
+-
+ exit:
+ 	return err;
+ }
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index a81aa7a..e5b390d 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -252,6 +252,11 @@ config SPI_TLE62X0
+ 	  sysfs interface, with each line presented as a kind of GPIO
+ 	  exposing both switch control and diagnostic feedback.
+ 
++config SPI_KS8995
++	tristate "Micrel/Kendin KS8995 Ethernet switch"
++	depends on SPI
++
++
+ #
+ # Add new SPI protocol masters in alphabetical order above this line
+ #
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index 544502f..9e8a277 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -36,6 +36,7 @@ obj-$(CONFIG_SPI_AT91)			+= spi_at91_bitbang.o
+ obj-$(CONFIG_SPI_AT25)		+= at25.o
+ obj-$(CONFIG_SPI_SPIDEV)	+= spidev.o
+ obj-$(CONFIG_SPI_TLE62X0)	+= tle62x0.o
++obj-$(CONFIG_SPI_KS8995)	+= spi_ks8995.o
+ # 	... add above this line ...
+ 
+ # SPI slave controller drivers (upstream link)
+diff --git a/drivers/spi/spi_ks8995.c b/drivers/spi/spi_ks8995.c
+new file mode 100644
+index 0000000..c0dd86b
+--- /dev/null
++++ b/drivers/spi/spi_ks8995.c
+@@ -0,0 +1,419 @@
++/*
++ * SPI driver for Micrel/Kendin KS8995M ethernet switch
++ *
++ * Copyright (C) 2008 Gabor Juhos <juhosg at openwrt.org>
++ *
++ * This file was based on: drivers/spi/at25.c
++ *	Copyright (C) 2006 David Brownell
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published
++ * by the Free Software Foundation.
++ */
++
++#include <linux/types.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/delay.h>
++#include <linux/device.h>
++
++#include <linux/spi/spi.h>
++
++#define DRV_VERSION	"0.1.1"
++#define DRV_DESC	"Micrel/Kendin KS8995 Ethernet switch SPI driver"
++
++/*-------------------------------------------------------------------------*/
++
++#define KS8995_REG_ID0		0x00	/* Chip ID0 */
++#define KS8995_REG_ID1		0x01	/* Chip ID1 */
++
++#define KS8995_REG_GC0		0x02	/* Global Control 0 */
++#define KS8995_REG_GC1		0x03	/* Global Control 1 */
++#define KS8995_REG_GC2		0x04	/* Global Control 2 */
++#define KS8995_REG_GC3		0x05	/* Global Control 3 */
++#define KS8995_REG_GC4		0x06	/* Global Control 4 */
++#define KS8995_REG_GC5		0x07	/* Global Control 5 */
++#define KS8995_REG_GC6		0x08	/* Global Control 6 */
++#define KS8995_REG_GC7		0x09	/* Global Control 7 */
++#define KS8995_REG_GC8		0x0a	/* Global Control 8 */
++#define KS8995_REG_GC9		0x0b	/* Global Control 9 */
++
++#define KS8995_REG_PC(p,r)	((0x10 * p) + r)	/* Port Control */
++#define KS8995_REG_PS(p,r)	((0x10 * p) + r + 0xe)	/* Port Status */
++
++#define KS8995_REG_TPC0		0x60	/* TOS Priority Control 0 */
++#define KS8995_REG_TPC1		0x61	/* TOS Priority Control 1 */
++#define KS8995_REG_TPC2		0x62	/* TOS Priority Control 2 */
++#define KS8995_REG_TPC3		0x63	/* TOS Priority Control 3 */
++#define KS8995_REG_TPC4		0x64	/* TOS Priority Control 4 */
++#define KS8995_REG_TPC5		0x65	/* TOS Priority Control 5 */
++#define KS8995_REG_TPC6		0x66	/* TOS Priority Control 6 */
++#define KS8995_REG_TPC7		0x67	/* TOS Priority Control 7 */
++
++#define KS8995_REG_MAC0		0x68	/* MAC address 0 */
++#define KS8995_REG_MAC1		0x69	/* MAC address 1 */
++#define KS8995_REG_MAC2		0x6a	/* MAC address 2 */
++#define KS8995_REG_MAC3		0x6b	/* MAC address 3 */
++#define KS8995_REG_MAC4		0x6c	/* MAC address 4 */
++#define KS8995_REG_MAC5		0x6d	/* MAC address 5 */
++
++#define KS8995_REG_IAC0		0x6e	/* Indirect Access Control 0 */
++#define KS8995_REG_IAC1		0x6f	/* Indirect Access Control 0 */
++
++#define KS8995_REG_IAD7		0x70	/* Indirect Access Data 7 */
++#define KS8995_REG_IAD6		0x71	/* Indirect Access Data 6 */
++#define KS8995_REG_IAD5		0x72	/* Indirect Access Data 5 */
++#define KS8995_REG_IAD4		0x73	/* Indirect Access Data 4 */
++#define KS8995_REG_IAD3		0x74	/* Indirect Access Data 3 */
++#define KS8995_REG_IAD2		0x75	/* Indirect Access Data 2 */
++#define KS8995_REG_IAD1		0x76	/* Indirect Access Data 1 */
++#define KS8995_REG_IAD0		0x77	/* Indirect Access Data 0 */
++
++#define KS8995_REGS_SIZE	0x80
++
++#define ID1_CHIPID_M	0xf
++#define ID1_CHIPID_S	4
++#define ID1_REVISION_M	0x7
++#define ID1_REVISION_S	1
++#define ID1_START_SW	1	/* start the switch */
++
++#define FAMILY_KS8995	0x95
++#define CHIPID_M	0
++
++#define KS8995_CMD_WRITE	0x02U
++#define KS8995_CMD_READ		0x03U
++
++#define KS8995_RESET_DELAY	10 /* usec */
++
++/*-------------------------------------------------------------------------*/
++
++struct ks8995_pdata {
++	/* not yet implemented */
++};
++
++struct ks8995_switch {
++	struct spi_device	*spi;
++	struct mutex		lock;
++	struct ks8995_pdata	*pdata;
++};
++
++/*-------------------------------------------------------------------------*/
++
++static inline u8 get_chip_id(u8 val)
++{
++	return ((val >> ID1_CHIPID_S) & ID1_CHIPID_M);
++}
++
++static inline u8 get_chip_rev(u8 val)
++{
++	return ((val >> ID1_REVISION_S) & ID1_REVISION_M);
++}
++
++/*-------------------------------------------------------------------------*/
++
++static int ks8995_read(struct ks8995_switch *ks, char *buf,
++		unsigned offset, size_t count)
++{
++	u8 cmd[2];
++	struct spi_transfer t[2];
++	struct spi_message m;
++	int err;
++
++	spi_message_init(&m);
++
++	memset(&t, 0, sizeof(t));
++
++	t[0].tx_buf = cmd;
++	t[0].len = sizeof(cmd);
++	spi_message_add_tail(&t[0], &m);
++
++	t[1].rx_buf = buf;
++	t[1].len = count;
++	spi_message_add_tail(&t[1], &m);
++
++	cmd[0] = KS8995_CMD_READ;
++	cmd[1] = offset;
++
++	mutex_lock(&ks->lock);
++	err = spi_sync(ks->spi, &m);
++	mutex_unlock(&ks->lock);
++
++	return err ? err : count;
++}
++
++
++static int ks8995_write(struct ks8995_switch *ks, char *buf,
++		unsigned offset, size_t count)
++{
++	u8 cmd[2];
++	struct spi_transfer t[2];
++	struct spi_message m;
++	int err;
++
++	spi_message_init(&m);
++
++	memset(&t, 0, sizeof(t));
++
++	t[0].tx_buf = cmd;
++	t[0].len = sizeof(cmd);
++	spi_message_add_tail(&t[0], &m);
++
++	t[1].tx_buf = buf;
++	t[1].len = count;
++	spi_message_add_tail(&t[1], &m);
++
++	cmd[0] = KS8995_CMD_WRITE;
++	cmd[1] = offset;
++
++	mutex_lock(&ks->lock);
++	err = spi_sync(ks->spi, &m);
++	mutex_unlock(&ks->lock);
++
++	return err ? err : count;
++}
++
++static inline int ks8995_read_reg(struct ks8995_switch *ks, u8 addr, u8 *buf)
++{
++	return (ks8995_read(ks, buf, addr, 1) != 1);
++}
++
++static inline int ks8995_write_reg(struct ks8995_switch *ks, u8 addr, u8 val)
++{
++	char buf = val;
++
++	return (ks8995_write(ks, &buf, addr, 1) != 1);
++}
++
++/*-------------------------------------------------------------------------*/
++
++#if 0
++static int ks8995_setup(struct spi_device *spi)
++{
++	struct ks8995_switch *ks;
++	u8 t;
++
++	ks = dev_get_drvdata(&spi->dev);
++
++	ks8995_write_reg(ks, KS8995_REG_GC0, 0x4c);
++	ks8995_write_reg(ks, KS8995_REG_GC1, 0x05);
++
++	ks8995_read_reg(ks, KS8995_REG_GC2, &t);
++	ks8995_write_reg(ks, KS8995_REG_GC2, t | 1);
++
++	ks8995_write_reg(ks, KS8995_REG_GC4, 0x20);
++
++	ks8995_write_reg(ks, KS8995_REG_PC(1,0), 0x61);
++	ks8995_write_reg(ks, KS8995_REG_PC(2,0), 0x61);
++	ks8995_write_reg(ks, KS8995_REG_PC(3,0), 0x61);
++	ks8995_write_reg(ks, KS8995_REG_PC(4,0), 0x61);
++	ks8995_write_reg(ks, KS8995_REG_PC(5,0), 0x61);
++
++	ks8995_write_reg(ks, KS8995_REG_PC(5,11), 0x18);
++
++	ks8995_write_reg(ks, KS8995_REG_TPC0, 0xff);
++	ks8995_write_reg(ks, KS8995_REG_TPC1, 0xff);
++	ks8995_write_reg(ks, KS8995_REG_TPC2, 0xff);
++	ks8995_write_reg(ks, KS8995_REG_TPC3, 0xff);
++	ks8995_write_reg(ks, KS8995_REG_TPC4, 0xff);
++	ks8995_write_reg(ks, KS8995_REG_TPC5, 0xff);
++	ks8995_write_reg(ks, KS8995_REG_TPC6, 0xff);
++	ks8995_write_reg(ks, KS8995_REG_TPC7, 0xfe);
++
++	return 0;
++}
++#endif
++
++static int ks8995_stop(struct ks8995_switch *ks)
++{
++	return ks8995_write_reg(ks, KS8995_REG_ID1, 0);
++}
++
++static int ks8995_start(struct ks8995_switch *ks)
++{
++	return ks8995_write_reg(ks, KS8995_REG_ID1, 1);
++}
++
++static int ks8995_reset(struct ks8995_switch *ks)
++{
++	int err;
++
++	err = ks8995_stop(ks);
++	if (err)
++		return err;
++
++	udelay(KS8995_RESET_DELAY);
++
++	return ks8995_start(ks);
++}
++
++/*-------------------------------------------------------------------------*/
++
++static int ks8995_registers_read(struct kobject *kobj,
++	struct bin_attribute *bin_attr, char *buf, loff_t off, size_t count)
++{
++	struct device *dev;
++	struct ks8995_switch *ks8995;
++
++	dev = container_of(kobj, struct device, kobj);
++	ks8995 = dev_get_drvdata(dev);
++
++	if (unlikely(off > KS8995_REGS_SIZE))
++		return 0;
++
++	if ((off + count) > KS8995_REGS_SIZE)
++		count = KS8995_REGS_SIZE - off;
++
++	if (unlikely(!count))
++		return count;
++
++	return ks8995_read(ks8995, buf, off, count);
++}
++
++
++static int ks8995_registers_write(struct kobject *kobj,
++	struct bin_attribute *bin_attr, char *buf, loff_t off, size_t count)
++{
++	struct device *dev;
++	struct ks8995_switch *ks8995;
++
++	dev = container_of(kobj, struct device, kobj);
++	ks8995 = dev_get_drvdata(dev);
++
++	if (unlikely(off >= KS8995_REGS_SIZE))
++		return -EFBIG;
++
++	if ((off + count) > KS8995_REGS_SIZE)
++		count = KS8995_REGS_SIZE - off;
++
++	if (unlikely(!count))
++		return count;
++
++	return ks8995_write(ks8995, buf, off, count);
++}
++
++
++static struct bin_attribute ks8995_registers_attr = {
++	.attr = {
++		.name	= "registers",
++		.mode	= S_IRUSR | S_IWUSR,
++	},
++	.size	= KS8995_REGS_SIZE,
++	.read	= ks8995_registers_read,
++	.write	= ks8995_registers_write,
++};
++
++/*-------------------------------------------------------------------------*/
++
++static int __devinit ks8995_probe(struct spi_device *spi)
++{
++	struct ks8995_switch	*ks;
++	struct ks8995_pdata	*pdata;
++	u8	ids[2];
++	int	err;
++
++	/* Chip description */
++	pdata = spi->dev.platform_data;
++
++	ks = kzalloc(sizeof(*ks), GFP_KERNEL);
++	if (!ks) {
++		dev_err(&spi->dev, "no memory for private data\n");
++		return-ENOMEM;
++	}
++
++	mutex_init(&ks->lock);
++	ks->pdata = pdata;
++	ks->spi = spi_dev_get(spi);
++	dev_set_drvdata(&spi->dev, ks);
++
++	spi->mode = SPI_MODE_0;
++	spi->bits_per_word = 8;
++	err = spi_setup(spi);
++	if (err) {
++		dev_err(&spi->dev, "spi_setup failed, err=%d \n", err);
++		goto err_drvdata;
++	}
++
++	err = ks8995_read(ks, ids, KS8995_REG_ID0, sizeof(ids));
++	if (err < 0) {
++		dev_err(&spi->dev, "unable to read id registers, err=%d \n",
++				err);
++		goto err_drvdata;
++	}
++
++	switch (ids[0]) {
++	case FAMILY_KS8995:
++		break;
++	default:
++		dev_err(&spi->dev, "unknown family id:%02x\n", ids[0]);
++		err = -ENODEV;
++		goto err_drvdata;
++	}
++
++	err = ks8995_reset(ks);
++	if (err)
++		goto err_drvdata;
++
++	err = sysfs_create_bin_file(&spi->dev.kobj, &ks8995_registers_attr);
++	if (err) {
++		dev_err(&spi->dev, "unable to create sysfs file, err=%d\n",
++					err);
++		goto err_drvdata;
++	}
++
++	dev_info(&spi->dev, "KS89%02X device found, Chip ID:%01x, "
++			"Revision:%01x\n", ids[0],
++			get_chip_id(ids[1]), get_chip_rev(ids[1]));
++
++	return 0;
++
++err_drvdata:
++	dev_set_drvdata(&spi->dev, NULL);
++	kfree(ks);
++	return err;
++}
++
++static int __devexit ks8995_remove(struct spi_device *spi)
++{
++	struct ks8995_data	*ks8995;
++
++	ks8995 = dev_get_drvdata(&spi->dev);
++	sysfs_remove_bin_file(&spi->dev.kobj, &ks8995_registers_attr);
++
++	dev_set_drvdata(&spi->dev, NULL);
++	kfree(ks8995);
++
++	return 0;
++}
++
++/*-------------------------------------------------------------------------*/
++
++static struct spi_driver ks8995_driver = {
++	.driver = {
++		.name		= "spi-ks8995",
++		.bus		= &spi_bus_type,
++		.owner		= THIS_MODULE,
++	},
++	.probe		= ks8995_probe,
++	.remove		= __devexit_p(ks8995_remove),
++};
++
++static int __init ks8995_init(void)
++{
++	printk(KERN_INFO DRV_DESC " version " DRV_VERSION"\n");
++
++	return spi_register_driver(&ks8995_driver);
++}
++module_init(ks8995_init);
++
++static void __exit ks8995_exit(void)
++{
++	spi_unregister_driver(&ks8995_driver);
++}
++module_exit(ks8995_exit);
++
++MODULE_DESCRIPTION(DRV_DESC);
++MODULE_VERSION(DRV_VERSION);
++MODULE_AUTHOR("Gabor Juhos <juhosg at openwrt.org>");
++MODULE_LICENSE("GPL v2");
++
+diff --git a/drivers/watchdog/Kconfig b/drivers/watchdog/Kconfig
+index ad78e36..2f90520 100644
+--- a/drivers/watchdog/Kconfig
++++ b/drivers/watchdog/Kconfig
+@@ -74,6 +74,14 @@ config AT91SAM9_WATCHDOG
+ 	  Watchdog timer embedded into AT91SAM9 chips. This will reboot your
+ 	  system when the timeout is reached.
+ 
++config MRFSA_WATCHDOG
++	tristate "MRFSA watchdog"
++	depends on MACH_MRFSA
++	select WATCHDOG_NOWAYOUT
++	help
++	  Watchdog timer embedded into MRFSA boards. This will reboot your
++	  system when the timeout is reached.
++
+ config 21285_WATCHDOG
+ 	tristate "DC21285 watchdog"
+ 	depends on FOOTBRIDGE
+diff --git a/drivers/watchdog/Makefile b/drivers/watchdog/Makefile
+index 390e6fd..25e62ea 100644
+--- a/drivers/watchdog/Makefile
++++ b/drivers/watchdog/Makefile
+@@ -27,6 +27,7 @@ obj-$(CONFIG_USBPCWATCHDOG) += pcwd_usb.o
+ # ARM Architecture
+ obj-$(CONFIG_AT91RM9200_WATCHDOG) += at91rm9200_wdt.o
+ obj-$(CONFIG_AT91SAM9_WATCHDOG) += at91sam9_wdt.o
++obj-$(CONFIG_MRFSA_WATCHDOG) += mrfsa_wdt.o
+ obj-$(CONFIG_OMAP_WATCHDOG) += omap_wdt.o
+ obj-$(CONFIG_21285_WATCHDOG) += wdt285.o
+ obj-$(CONFIG_977_WATCHDOG) += wdt977.o
+diff --git a/drivers/watchdog/mrfsa_wdt.c b/drivers/watchdog/mrfsa_wdt.c
+new file mode 100644
+index 0000000..c77ade2
+--- /dev/null
++++ b/drivers/watchdog/mrfsa_wdt.c
+@@ -0,0 +1,289 @@
++/*
++ * Watchdog driver for Embedtronisc MRFSA board.
++ *
++ * Copyright (C) 2009 Embedtronics Oy
++ * Copyright (C) 2007 Renaud CERRATO r.cerrato@til-technologies.fr
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version
++ * 2 of the License, or (at your option) any later version.
++ */
++
++/*
++ * The Watchdog Timer Mode Register can be only written to once. If the
++ * timeout need to be set from Linux, be sure that the bootstrap or the
++ * bootloader doesn't write to this register.
++ */
++
++#include <linux/errno.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/miscdevice.h>
++#include <linux/module.h>
++#include <linux/moduleparam.h>
++#include <linux/platform_device.h>
++#include <linux/types.h>
++#include <linux/watchdog.h>
++#include <linux/bitops.h>
++#include <linux/uaccess.h>
++#include <linux/hrtimer.h>
++
++#include <asm/io.h>
++#include <mach/hardware.h>
++#include <mach/at91_pio.h>
++#include <mach/gpio.h>
++#include <mach/at91_wdt.h>
++
++
++#define	WDT_TIMER_INTERVAL	100UL	/* timer callback interval (ms) */
++#define	WDT_TIMEOUT		16	/* watchdog timeout (s) */
++
++static volatile int wdt_cntr = WDT_TIMEOUT * 1000 / WDT_TIMER_INTERVAL;
++static struct hrtimer wdt_timer;
++static int wdt_timeout = WDT_TIMEOUT;
++static volatile unsigned long mrfsa_wdt_busy;
++
++/* ......................................................................... */
++
++/*
++ * Reload the watchdog timer.  (ie, pat the watchdog)
++ */
++static inline void mrfsa_wdt_reload(void)
++{
++	at91_set_gpio_value(AT91_PIN_PC4, 1);
++	at91_sys_write(AT91_WDT_CR, AT91_WDT_KEY | AT91_WDT_WDRSTT);
++	at91_set_gpio_value(AT91_PIN_PC4, 0);
++}
++
++static enum hrtimer_restart mrfsa_wdt_timer_cb(struct hrtimer *tmr)
++{
++	int cntr;
++	if (!mrfsa_wdt_busy) {
++		wdt_cntr = wdt_timeout;
++		mrfsa_wdt_reload();
++	} else if ((cntr = wdt_cntr) > 0) {
++		wdt_cntr = cntr - 1;
++		mrfsa_wdt_reload();
++	}
++	tmr->expires = ktime_add_ns(tmr->expires, WDT_TIMER_INTERVAL * 1000000UL);
++	return HRTIMER_RESTART;
++}
++
++
++/* ......................................................................... */
++
++/*
++ * Watchdog device is opened, and watchdog starts running.
++ */
++static int mrfsa_wdt_open(struct inode *inode, struct file *file)
++{
++	if (test_and_set_bit(0, &mrfsa_wdt_busy))
++		return -EBUSY;
++
++	return nonseekable_open(inode, file);
++}
++
++/*
++ * Close the watchdog device.
++ */
++static int mrfsa_wdt_close(struct inode *inode, struct file *file)
++{
++	clear_bit(0, &mrfsa_wdt_busy);
++	return 0;
++}
++
++/*
++ * Change the watchdog time interval.
++ */
++#define	WDT_MAX_TIME	16
++static int mrfsa_wdt_settimeout(int new_time)
++{
++	unsigned int reg, mr;
++	/*
++	 * All counting occurs at SLOW_CLOCK / 128 = 256 Hz
++	 *
++	 * Since WDV is a 12-bit counter, the maximum period is
++	 * 4096 / 256 = 16 seconds.
++	 */
++	if ((new_time <= 0) || (new_time > WDT_MAX_TIME))
++		return -EINVAL;
++
++	wdt_cntr = new_time * 1000 / WDT_TIMER_INTERVAL;
++	wdt_timeout = new_time;
++
++	/* Program the Watchdog */
++	reg = AT91_WDT_WDRSTEN					/* causes watchdog reset */
++		| AT91_WDT_WDRPROC				/* causes processor reset */
++		| AT91_WDT_WDDBGHLT				/* disabled in debug mode */
++		| AT91_WDT_WDD					/* restart at any time */
++		| AT91_WDT_WDV/*(((wdt_timeout * 256) - 1) & AT91_WDT_WDV)*/;	/* timer value */
++	at91_sys_write(AT91_WDT_MR, reg);
++
++	/* Check if watchdog could be programmed */
++	mr = at91_sys_read(AT91_WDT_MR);
++	if (mr != reg) {
++		printk(KERN_ERR "mrfsa_wdt: Watchdog register already programmed.\n");
++		return -EIO;
++	}
++
++	mrfsa_wdt_reload();
++
++	printk(KERN_INFO "AT91SAM9 Watchdog enabled (%d seconds, nowayout)\n", wdt_timeout);
++	return 0;
++}
++
++static struct watchdog_info mrfsa_wdt_info = {
++	.identity	= "at91sam9 watchdog",
++	.options	= WDIOF_SETTIMEOUT | WDIOF_KEEPALIVEPING,
++};
++
++/*
++ * Handle commands from user-space.
++ */
++static long mrfsa_wdt_ioctl(struct file *file,
++					unsigned int cmd, unsigned long arg)
++{
++	void __user *argp = (void __user *)arg;
++	int __user *p = argp;
++	int new_value, err;
++
++	switch (cmd) {
++	case WDIOC_GETSUPPORT:
++		return copy_to_user(argp, &mrfsa_wdt_info,
++				sizeof(mrfsa_wdt_info)) ? -EFAULT : 0;
++	case WDIOC_GETSTATUS:
++	case WDIOC_GETBOOTSTATUS:
++		return put_user(0, p);
++	case WDIOC_KEEPALIVE:
++		wdt_cntr = wdt_timeout * 1000 / WDT_TIMER_INTERVAL;
++		mrfsa_wdt_reload();	/* pat the watchdog */
++		return 0;
++	case WDIOC_SETTIMEOUT:
++		if (get_user(new_value, p))
++			return -EFAULT;
++
++		err = mrfsa_wdt_settimeout(new_value);
++		if (err)
++			return err;
++
++		return put_user(wdt_timeout, p);	/* return current value */
++	case WDIOC_GETTIMEOUT:
++		return put_user(wdt_timeout, p);
++	default:
++		return -ENOTTY;
++
++	}
++}
++
++/*
++ * Pat the watchdog whenever device is written to.
++ */
++static ssize_t mrfsa_wdt_write(struct file *file, const char *data,
++						size_t len, loff_t *ppos)
++{
++	wdt_cntr = wdt_timeout * 1000 / WDT_TIMER_INTERVAL;
++	mrfsa_wdt_reload();		/* pat the watchdog */
++	return len;
++}
++
++/* ......................................................................... */
++
++static const struct file_operations mrfsa_wdt_fops = {
++	.owner		= THIS_MODULE,
++	.llseek		= no_llseek,
++	.unlocked_ioctl	= mrfsa_wdt_ioctl,
++	.open		= mrfsa_wdt_open,
++	.release	= mrfsa_wdt_close,
++	.write		= mrfsa_wdt_write,
++};
++
++static struct miscdevice mrfsa_wdt_miscdev = {
++	.minor		= WATCHDOG_MINOR,
++	.name		= "watchdog",
++	.fops		= &mrfsa_wdt_fops,
++};
++
++static int __init mrfsa_wdt_probe(struct platform_device *pdev)
++{
++	int res;
++
++	if (mrfsa_wdt_miscdev.parent)
++		return -EBUSY;
++	mrfsa_wdt_miscdev.parent = &pdev->dev;
++
++	res = misc_register(&mrfsa_wdt_miscdev);
++	if (res)
++		return res;
++
++	/* Set watchdog */
++	if (mrfsa_wdt_settimeout(wdt_timeout) == -EINVAL) {
++		pr_info("mrfsa_wdt: invalid timeout (must be between 1 and %d)\n", WDT_MAX_TIME);
++		return 0;
++	}
++
++	return 0;
++}
++
++static int __exit mrfsa_wdt_remove(struct platform_device *pdev)
++{
++	int res;
++
++	res = misc_deregister(&mrfsa_wdt_miscdev);
++	if (!res)
++		mrfsa_wdt_miscdev.parent = NULL;
++
++	return res;
++}
++
++#ifdef CONFIG_PM
++
++static int mrfsa_wdt_suspend(struct platform_device *pdev, pm_message_t message)
++{
++	return 0;
++}
++
++static int mrfsa_wdt_resume(struct platform_device *pdev)
++{
++	return 0;
++}
++
++#else
++#define mrfsa_wdt_suspend	NULL
++#define mrfsa_wdt_resume	NULL
++#endif
++
++static struct platform_driver mrfsa_wdt_driver = {
++	.remove		= __exit_p(mrfsa_wdt_remove),
++	.suspend	= mrfsa_wdt_suspend,
++	.resume		= mrfsa_wdt_resume,
++	.driver		= {
++		.name	= "mrfsa_wdt",
++		.owner	= THIS_MODULE,
++	},
++};
++
++static int __init mrfsa_wdt_init(void)
++{
++	mrfsa_wdt_reload();
++	hrtimer_init(&wdt_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++	wdt_timer.function = mrfsa_wdt_timer_cb;
++	wdt_timer.cb_mode = HRTIMER_CB_IRQSAFE;
++	hrtimer_start(&wdt_timer, ktime_set(0, WDT_TIMER_INTERVAL * 1000000UL), HRTIMER_MODE_REL);
++	return platform_driver_probe(&mrfsa_wdt_driver, mrfsa_wdt_probe);
++}
++
++static void __exit mrfsa_wdt_exit(void)
++{
++	platform_driver_unregister(&mrfsa_wdt_driver);
++}
++
++module_init(mrfsa_wdt_init);
++module_exit(mrfsa_wdt_exit);
++
++MODULE_AUTHOR("Sami Kantoluoto");
++MODULE_DESCRIPTION("Watchdog driver for Embedtronics MRFSA board");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS_MISCDEV(WATCHDOG_MINOR);
++MODULE_ALIAS("platform:mrfsa_wdt");
+-- 
+1.7.0.4
+
