@@ -406,6 +406,15 @@ config MACH_SBC35_A9G20
 	  Select this if you are using a Calao Systems SBC35-A9G20.
 	  <http://www.calao-systems.com>
 
+config MACH_TM_EFDC
+	bool "Telemerkki TM-EFDC Ethernet I/O unit"
+	select GENERIC_GPIO
+	select ARCH_REQUIRE_GPIOLIB
+	depends on ARCH_AT91SAM9G20
+	help
+	  Select this if you are using Telemerkki's TM-EFDC Ethernet I/O unit.
+	  <http://www.telemerkki.fi/eng/?ID=1407>
+
 endif
 
 # ----------------------------------------------------------
@@ -502,7 +511,7 @@ comment "AT91 Board Options"
 
 config MTD_AT91_DATAFLASH_CARD
 	bool "Enable DataFlash Card support"
-	depends on (ARCH_AT91RM9200DK || MACH_AT91RM9200EK || MACH_AT91SAM9260EK || MACH_AT91SAM9261EK || MACH_AT91SAM9G10EK || MACH_AT91SAM9263EK || MACH_AT91SAM9G20EK || MACH_ECBAT91 || MACH_SAM9_L9260 || MACH_AT91CAP9ADK || MACH_AT572D940HFEB || MACH_TOTEMNOVA || MACH_NEOCORE926 || MACH_MRFSA)
+	depends on (ARCH_AT91RM9200DK || MACH_AT91RM9200EK || MACH_AT91SAM9260EK || MACH_AT91SAM9261EK || MACH_AT91SAM9G10EK || MACH_AT91SAM9263EK || MACH_AT91SAM9G20EK || MACH_ECBAT91 || MACH_SAM9_L9260 || MACH_AT91CAP9ADK || MACH_AT572D940HFEB || MACH_TOTEMNOVA || MACH_NEOCORE926 || MACH_MRFSA || MACH_TM_EFDC)
 	help
 	  Enable support for the DataFlash card.
 

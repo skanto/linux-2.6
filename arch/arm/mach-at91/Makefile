@@ -88,6 +88,9 @@ obj-$(CONFIG_MACH_AT91EB01)	+= board-eb01.o
 # MRFSA board-specific support
 obj-$(CONFIG_MACH_MRFSA)	+= board-mrfsa.o
 
+# TM-EFDC board-specific support
+obj-$(CONFIG_MACH_TM_EFDC)	+= board-tm_efdc.o
+
 # Drivers
 obj-y				+= leds.o
 obj-$(CONFIG_FB_S1D13XXX)	+= ics1523.o
