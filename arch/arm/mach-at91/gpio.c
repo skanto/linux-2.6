@@ -754,15 +754,6 @@ void at91_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 		.base			= base_gpio,			\
 		.ngpio			= 32,				\
 	}
-
-static struct gpio_chip at91_gpio_banks[6] = {
-	at91_gpio_BANK("PIOA", PIN_BASE + 0 * 32),
-	at91_gpio_BANK("PIOB", PIN_BASE + 1 * 32),
-	at91_gpio_BANK("PIOC", PIN_BASE + 2 * 32),
-	at91_gpio_BANK("PIOD", PIN_BASE + 3 * 32),
-	at91_gpio_BANK("PIOE", PIN_BASE + 4 * 32),
-	at91_gpio_BANK("PIOF", PIN_BASE + 5 * 32),
-};
 #endif	/* CONFIG_GPIOLIB */
 
 void __init at91_gpio_init(struct at91_gpio_bank *data, int nr_banks)
