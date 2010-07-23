@@ -334,6 +334,8 @@ static void __init mrfsa_board_init(void)
 {
 	/* Serial */
 	at91_add_device_serial();
+	/* Watchdog */
+	at91_add_gpio_wdt(AT91_PIN_PC4);
 	/* USB Host */
 	at91_add_device_usbh(&mrfsa_usbh_data);
 	/* USB Device */
