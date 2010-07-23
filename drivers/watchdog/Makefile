@@ -42,6 +42,7 @@ obj-$(CONFIG_IOP_WATCHDOG) += iop_wdt.o
 obj-$(CONFIG_DAVINCI_WATCHDOG) += davinci_wdt.o
 obj-$(CONFIG_ORION5X_WATCHDOG) += orion5x_wdt.o
 obj-$(CONFIG_MRFSA_WATCHDOG) += mrfsa_wdt.o
+obj-$(CONFIG_AT91SAM9X_GPIO_WATCHDOG) += at91sam9_gpio_wdt.o
 
 # AVR32 Architecture
 obj-$(CONFIG_AT32AP700X_WDT) += at32ap700x_wdt.o

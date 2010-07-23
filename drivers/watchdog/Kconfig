@@ -80,6 +80,14 @@ config AT91SAM9X_WATCHDOG
 	  Watchdog timer embedded into AT91SAM9X and AT91CAP9 chips. This will
 	  reboot your system when the timeout is reached.
 
+config AT91SAM9X_GPIO_WATCHDOG
+	tristate "AT91SAM9X + GPIO driven watchdog"
+	depends on ARCH_AT91 && !ARCH_AT91RM9200
+	select WATCHDOG_NOWAYOUT
+	help
+	  Watchdog timer GPIO driven external watchdog. This will reboot your
+	  system when the timeout is reached.
+
 config MRFSA_WATCHDOG
 	tristate "MRFSA watchdog"
 	depends on MACH_MRFSA
