@@ -163,6 +163,12 @@ config GPIO_BT8XX
 
 comment "SPI GPIO expanders:"
 
+config GPIO_MAX4896
+	tristate "Maxim MAX4896 GPIO expander"
+	depends on SPI_MASTER
+	help
+	  gpio driver for Maxim MAX4896 SPI GPIO expander.
+
 config GPIO_MAX7301
 	tristate "Maxim MAX7301 GPIO expander"
 	depends on SPI_MASTER
