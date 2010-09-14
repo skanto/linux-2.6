@@ -140,6 +140,8 @@ struct atmel_uart_port {
 	struct atmel_dma_buffer	pdc_rx[2];	/* PDC receier */
 
 	short			use_dma_tx;	/* enable PDC transmitter */
+	short			txe_pin;	/* TX-enable pin */
+	short			txe_active_low;	/* TX-enable is active low */
 	struct atmel_dma_buffer	pdc_tx;		/* PDC transmitter */
 
 	struct tasklet_struct	tasklet;
@@ -288,6 +290,7 @@ static void atmel_start_tx(struct uart_port *port)
 			return;
 
 		UART_PUT_IER(port, ATMEL_US_ENDTX | ATMEL_US_TXBUFE);
+
 		/* re-enable PDC transmit */
 		UART_PUT_PTCR(port, ATMEL_PDC_TXTEN);
 	} else
@@ -427,15 +430,27 @@ static void atmel_rx_chars(struct uart_port *port)
  */
 static void atmel_tx_chars(struct uart_port *port)
 {
+	struct atmel_uart_port *atmel_port = to_atmel_uart_port(port);
 	struct circ_buf *xmit = &port->info->xmit;
 
-	if (port->x_char && UART_GET_CSR(port) & ATMEL_US_TXRDY) {
-		UART_PUT_CHAR(port, port->x_char);
-		port->icount.tx++;
-		port->x_char = 0;
+	if (port->x_char) {
+		if (UART_GET_CSR(port) & ATMEL_US_TXRDY) {
+			if (atmel_port->txe_pin)
+				at91_set_gpio_value(atmel_port->txe_pin, atmel_port->txe_active_low ? 0 : 1);
+			UART_PUT_CHAR(port, port->x_char);
+			if (atmel_port->txe_pin)
+				UART_PUT_IER(port, ATMEL_US_TXEMPTY);
+			port->icount.tx++;
+			port->x_char = 0;
+		}
+		return;
 	}
+
 	if (uart_circ_empty(xmit) || uart_tx_stopped(port))
 		return;
+
+	if (atmel_port->txe_pin)
+		at91_set_gpio_value(atmel_port->txe_pin, atmel_port->txe_active_low ? 0 : 1);
 
 	while (UART_GET_CSR(port) & ATMEL_US_TXRDY) {
 		UART_PUT_CHAR(port, xmit->buf[xmit->tail]);
@@ -450,6 +465,9 @@ static void atmel_tx_chars(struct uart_port *port)
 
 	if (!uart_circ_empty(xmit))
 		UART_PUT_IER(port, ATMEL_US_TXRDY);
+
+	if (atmel_port->txe_pin)
+		UART_PUT_IER(port, ATMEL_US_TXEMPTY);
 }
 
 /*
@@ -500,6 +518,12 @@ static void
 atmel_handle_transmit(struct uart_port *port, unsigned int pending)
 {
 	struct atmel_uart_port *atmel_port = to_atmel_uart_port(port);
+
+	if (pending & ATMEL_US_TXEMPTY) {
+		UART_PUT_IDR(port, ATMEL_US_TXEMPTY);
+		if (atmel_port->txe_pin)
+			at91_set_gpio_value(atmel_port->txe_pin, atmel_port->txe_active_low ? 1 : 0);
+	}
 
 	if (atmel_use_dma_tx(port)) {
 		/* PDC transmit */
@@ -591,8 +615,10 @@ static void atmel_tx_dma(struct uart_port *port)
 		UART_PUT_TPR(port, pdc->dma_addr + xmit->tail);
 		UART_PUT_TCR(port, count);
 		/* re-enable PDC transmit and interrupts */
+		if (atmel_port->txe_pin)
+			at91_set_gpio_value(atmel_port->txe_pin, atmel_port->txe_active_low ? 0 : 1);
 		UART_PUT_PTCR(port, ATMEL_PDC_TXTEN);
-		UART_PUT_IER(port, ATMEL_US_ENDTX | ATMEL_US_TXBUFE);
+		UART_PUT_IER(port, ATMEL_US_ENDTX | ATMEL_US_TXBUFE | (atmel_port->txe_pin ? ATMEL_US_TXEMPTY : 0));
 	}
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
@@ -1279,6 +1305,12 @@ static void __devinit atmel_init_port(struct atmel_uart_port *atmel_port,
 	atmel_port->use_dma_tx = data->use_dma_tx;
 	if (atmel_use_dma_tx(port))
 		port->fifosize = PDC_BUFFER_SIZE;
+
+	atmel_port->txe_pin = data->txe_pin;
+	atmel_port->txe_active_low = data->txe_active_low;
+
+	if (atmel_port->txe_pin)
+		at91_set_gpio_value(atmel_port->txe_pin, atmel_port->txe_active_low ? 1 : 0);
 }
 
 /*

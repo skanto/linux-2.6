@@ -146,6 +146,8 @@ struct atmel_uart_data {
 	short		use_dma_tx;	/* use transmit DMA? */
 	short		use_dma_rx;	/* use receive DMA? */
 	void __iomem	*regs;		/* virtual base address, if any */
+	short		txe_pin;	/* transmit enable pin */
+	short		txe_active_low;	/* transmit enable is active low */
 };
 extern void __init at91_add_device_serial(void);
 
