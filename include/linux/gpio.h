@@ -56,7 +56,20 @@ static inline int gpio_get_value(unsigned gpio)
 	return 0;
 }
 
+static inline int gpio_get_values(unsigned gpio, unsigned count, int *values)
+{
+	/* GPIO can never have been requested or set as {in,out}put */
+	WARN_ON(1);
+	return 0;
+}
+
 static inline void gpio_set_value(unsigned gpio, int value)
+{
+	/* GPIO can never have been requested or set as output */
+	WARN_ON(1);
+}
+
+static inline void gpio_set_values(unsigned gpio, unsigned count, const int *values)
 {
 	/* GPIO can never have been requested or set as output */
 	WARN_ON(1);

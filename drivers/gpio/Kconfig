@@ -189,4 +189,10 @@ config GPIO_MC74X595
 	  SPI driver for MC74x595 compatible shift register.  This provides
 	  a GPIO interface supporting outputs.
 
+config GPIO_TM_EFDC
+	tristate "TM-EFDC I/O driver"
+	depends on SPI_MASTER && MACH_TM_EFDC
+	help
+	  I/O driver for Telemerkki TM-EFDC.
+
 endif
