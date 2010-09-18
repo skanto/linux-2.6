@@ -208,6 +208,14 @@
 #define	MRFSA_PIN_DO2		(MRFSA_PIN_BASE + 15)
 #endif	/* CONFIG_MACH_MRFSA */
 
+#ifdef	CONFIG_MACH_TM_EFDC
+#define	TM_EFDC_DIN_BASE	(PIN_BASE + 0xa0)	// digital inputs
+#define	TM_EFDC_DOUT_S_BASE	(PIN_BASE + 0xc0)	// digital output status
+#define	TM_EFDC_DOUT_BASE	(PIN_BASE + 0xe0)	// digital outputs
+#define	TM_EFDC_AIN_BASE	(PIN_BASE + 0x100)	// analog inputs
+#define	TM_EFDC_AOUT_BASE	(PIN_BASE + 0x108)	// analog outputs
+#endif
+
 #ifndef __ASSEMBLY__
 /* setup setup routines, called from board init or driver probe() */
 extern int __init_or_module at91_set_GPIO_periph(unsigned pin, int use_pullup);
@@ -232,7 +240,9 @@ extern void at91_gpio_resume(void);
  * eventually be removed (along with this errno.h inclusion), and the
  * gpio request/free calls should probably be implemented.
  */
-
+#ifdef	MACH_TM_EFDC
+#define	ARCH_NR_GPIOS	512
+#endif
 #include <asm/errno.h>
 #include <asm-generic/gpio.h>		/* cansleep wrappers */
 

@@ -44,6 +44,8 @@
 #include <linux/input.h>
 #include <mach/at91sam9_smc.h>
 
+#include <linux/spi/max4896.h>
+
 #include "sam9_smc.h"
 #include "generic.h"
 
@@ -123,8 +125,23 @@ static void __init efdc_init_irq(void)
 /*
  * SPI devices.
  */
+static struct max4896_platform_data max4896_platform_data = {
+  .base		= TM_EFDC_DIN_BASE,
+  .chips	= 4
+};
+
 static struct spi_board_info efdc_spi_devices[] = {
-	{	/* DataFlash chip */
+#if 0
+	{	/* SPI-flash chip */
+		.modalias	= "m25p80",
+		.irq		= -1,
+		.chip_select	= 0,
+		.max_speed_hz	= 20 * 1000 * 1000,
+		.bus_num	= 0,
+		.controller_data= (void*)AT91_PIN_PA3,
+	},
+#endif
+	{	/* or DataFlash chip */
 		.modalias	= "mtd_dataflash",
 		.chip_select	= 0,
 		.max_speed_hz	= 15 * 1000 * 1000,
@@ -151,6 +168,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC3,
+		.platform_data	= (void*)TM_EFDC_AIN_BASE,
 	},
 	{	/* ADC2 */
 		.modalias	= "spi-ltc1867",
@@ -158,6 +176,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC6,
+		.platform_data	= (void*)(TM_EFDC_AIN_BASE+4),
 	},
 	{	/* DAC1 */
 		.modalias	= "spi-ad5666",
@@ -165,6 +184,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC8,
+		.platform_data	= (void*)TM_EFDC_AOUT_BASE,
 	},
 	{	/* DAC2 */
 		.modalias	= "spi-ad5666",
@@ -172,13 +192,15 @@ static struct spi_board_info efdc_spi_devices[] = {
 		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC9,
+		.platform_data	= (void*)(TM_EFDC_AOUT_BASE+4),
 	},
-	{	/* digital output */
-		.modalias	= "spi-max4896",
-		.chip_select	= 0,
+	{	/* digital I/O */
+		.modalias	= "max4896",
+		.chip_select	= 0+4,
 		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 1,
 		.controller_data= (void*)AT91_PIN_PB3,
+		.platform_data	= &max4896_platform_data
 	},
 };
 
