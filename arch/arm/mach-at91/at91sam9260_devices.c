@@ -1090,6 +1090,9 @@ static struct resource uart1_resources[] = {
 static struct atmel_uart_data uart1_data = {
 	.use_dma_tx	= 1,
 	.use_dma_rx	= 1,
+#ifdef	CONFIG_MACH_TM_EFDC
+	.txe_pin	= AT91_PIN_PB18,
+#endif
 };
 
 static u64 uart1_dmamask = DMA_BIT_MASK(32);
@@ -1133,6 +1136,9 @@ static struct resource uart2_resources[] = {
 static struct atmel_uart_data uart2_data = {
 	.use_dma_tx	= 1,
 	.use_dma_rx	= 1,
+#ifdef	CONFIG_MACH_TM_EFDC
+	.txe_pin	= AT91_PIN_PB19,
+#endif
 };
 
 static u64 uart2_dmamask = DMA_BIT_MASK(32);
