@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2006 Juergen Beisert, Pengutronix
  * Copyright (C) 2008 Guennadi Liakhovetski, Pengutronix
- * Copyright (C) 2010 Telemerkki Oy
+ * Copyright (C) 2010 Sami Kantoluoto, Embedtronics Oy
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -60,7 +60,7 @@ static int max4896_transfer(struct max4896 *ts)
 		.rx_buf		= ts->out_status,	/* first ts->num_chips are status and next are inputs */
 	};
 	struct spi_message	m;
-  
+
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
 
@@ -103,20 +103,56 @@ static int max4896_get(struct gpio_chip *chip, unsigned offset)
 	if (offset < ts->num_chips * 8) {
 		/* inputs */
 		max4896_transfer(ts);
-		level = (ts->in_level[offset / 8] & (1U << (offset % 8))) != 0;
+		level = (ts->in_level[offset / 8] & (1U << (offset % 8))) ? INT_MAX : 0;
 	} else if (offset < ts->num_chips * 8 * 2) {
 		/* output status */
 		offset -= ts->num_chips * 8;
-		level = (ts->out_status[offset / 8] & (1U << (offset % 8))) != 0;
+		level = (ts->out_status[offset / 4] >> ((offset % 4) * 2)) & 3U;
 	} else {
 	  	/* outputs */
 		offset -= ts->num_chips * 8 * 2;
-		level = (ts->out_level[offset / 8] & (1U << (offset % 8))) != 0;
+		level = (ts->out_level[offset / 8] & (1U << (offset % 8))) ? INT_MAX : 0;
 	}
 
 	mutex_unlock(&ts->lock);
 
 	return level;
+}
+
+static int max4896_get_multiple(struct gpio_chip *chip, unsigned offset, unsigned count, int *values)
+{
+	struct max4896 *ts = container_of(chip, struct max4896, chip);
+
+	mutex_lock(&ts->lock);
+
+	if (offset < ts->num_chips * 8) {
+		/* inputs, do transfer */
+		max4896_transfer(ts);
+	}
+
+	/* inputs: */
+	while (count > 0 && offset < ts->num_chips * 8) {
+		*values++ = (ts->in_level[offset / 8] & (1U << (offset % 8))) ? INT_MAX : 0;
+		offset++; count--;
+	}
+
+	/* output status: */
+	offset -= ts->num_chips * 8;
+	while (count > 0 && offset < ts->num_chips * 8) {
+		*values++ = (ts->out_status[offset / 4] >> ((offset % 4) * 2)) & 3U;
+		offset++; count--;
+	}
+
+	/* outputs: */
+	offset -= ts->num_chips * 8;
+	while (count > 0 && offset < ts->num_chips * 8) {
+		*values++ = (ts->out_level[offset / 8] & (1U << (offset % 8))) ? INT_MAX : 0;
+		offset++; count--;
+	}
+
+	mutex_unlock(&ts->lock);
+
+	return 0;
 }
 
 static void max4896_set(struct gpio_chip *chip, unsigned offset, int value)
@@ -135,6 +171,28 @@ static void max4896_set(struct gpio_chip *chip, unsigned offset, int value)
 		}
 
 		max4896_transfer(ts);
+
+		mutex_unlock(&ts->lock);
+	}
+}
+
+static void max4896_set_multiple(struct gpio_chip *chip, unsigned offset, unsigned count, const int *value)
+{
+	struct max4896 *ts = container_of(chip, struct max4896, chip);
+
+	if (offset >= ts->num_chips * 8 * 2) {
+		offset -= ts->num_chips * 8 * 2;
+
+		mutex_lock(&ts->lock);
+
+		while (count-- > 0) {
+			if (*value++)
+				ts->out_level[offset / 8] |= 1U << (offset % 8);
+			else
+				ts->out_level[offset / 8] &= ~(1U << (offset % 8));
+		}
+
+		/*max4896_transfer(ts);*/	// @@@ kludge, assume get_multiple gets called for inputs @@@
 
 		mutex_unlock(&ts->lock);
 	}
@@ -159,13 +217,13 @@ static int __devinit max4896_probe(struct spi_device *spi)
 	if (ret < 0)
 		return ret;
 
-	ts = kzalloc(sizeof(struct max4896) + sizeof(u8) * pdata->chips * 3, GFP_KERNEL);
+	ts = kzalloc(sizeof(struct max4896) + sizeof(u8) * pdata->chips * 4, GFP_KERNEL);
 	if (!ts)
 		return -ENOMEM;
 
 	mutex_init(&ts->lock);
-	ts->in_level = &ts->out_status[pdata->chips * 1];
-	ts->out_level = &ts->out_status[pdata->chips * 2];
+	ts->in_level = &ts->out_status[pdata->chips * 2];
+	ts->out_level = &ts->out_status[pdata->chips * 3];
 
 	dev_set_drvdata(&spi->dev, ts);
 
@@ -176,8 +234,10 @@ static int __devinit max4896_probe(struct spi_device *spi)
 
 	ts->chip.direction_input = max4896_direction_input;
 	ts->chip.get = max4896_get;
+	ts->chip.get_multiple = max4896_get_multiple;
 	ts->chip.direction_output = max4896_direction_output;
 	ts->chip.set = max4896_set;
+	ts->chip.set_multiple = max4896_set_multiple;
 
 	ts->chip.base = pdata->base;
 	ts->chip.ngpio = pdata->chips * 8 * 3;
