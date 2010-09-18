@@ -42,8 +42,10 @@ struct module;
  * @direction_input: configures signal "offset" as input, or returns error
  * @get: returns value for signal "offset"; for output signals this
  *	returns either the value actually sensed, or zero
+ * @get_multiple: returns values of multiple signals starting at "offset";
  * @direction_output: configures signal "offset" as output, or returns error
  * @set: assigns output value for signal "offset"
+ * @set_multiple: assigns values for multiple outputs starting at signal "offset"
  * @to_irq: optional hook supporting non-static gpio_to_irq() mappings;
  *	implementation may not sleep
  * @dbg_show: optional routine to show contents in debugfs; default code
@@ -84,11 +86,18 @@ struct gpio_chip {
 						unsigned offset);
 	int			(*get)(struct gpio_chip *chip,
 						unsigned offset);
+	int			(*get_multiple)(struct gpio_chip *chip,
+						unsigned offset,
+						unsigned count,
+						int *values);
 	int			(*direction_output)(struct gpio_chip *chip,
 						unsigned offset, int value);
 	void			(*set)(struct gpio_chip *chip,
 						unsigned offset, int value);
-
+	void			(*set_multiple)(struct gpio_chip *chip,
+						unsigned offset,
+						unsigned count,
+						const int *value);
 	int			(*to_irq)(struct gpio_chip *chip,
 						unsigned offset);
 

@@ -8,7 +8,6 @@
 #include <linux/seq_file.h>
 #include <linux/gpio.h>
 
-
 /* Optional implementation infrastructure for GPIO interfaces.
  *
  * Platforms may want to use this if they tend to use very many GPIOs
@@ -1048,6 +1047,48 @@ int __gpio_get_value(unsigned gpio)
 EXPORT_SYMBOL_GPL(__gpio_get_value);
 
 /**
+ * __gpio_get_value() - return a gpio's value
+ * @gpio: gpio whose value will be returned
+ * Context: any
+ *
+ * This is used directly or indirectly to implement gpio_get_value().
+ * It returns the zero or nonzero value provided by the associated
+ * gpio_chip.get() method; or zero if no such method is provided.
+ */
+int gpio_get_values(unsigned gpio, unsigned count, int *values)
+{
+	int ret = 0;
+
+	while (count > 0) {
+		struct gpio_chip *chip = gpio_to_chip(gpio);
+		unsigned offs = gpio - chip->base;
+		unsigned num = chip->ngpio - offs;
+
+		if (num > count)
+			num = count;
+
+		if (!chip->get_multiple) {
+			unsigned c;
+			for (c = num; c > 0; c--) {
+				values[c] = 0;
+			}
+		} else {
+			ret = chip->get_multiple(chip, offs, num, values);
+			if (ret != 0)
+				break;
+		}
+
+		gpio += num;
+		values += num;
+		count -= num;
+	}
+
+	return ret;
+}
+
+EXPORT_SYMBOL_GPL(gpio_get_values);
+
+/**
  * __gpio_set_value() - assign a gpio's value
  * @gpio: gpio whose value will be assigned
  * @value: value to assign
@@ -1065,6 +1106,44 @@ void __gpio_set_value(unsigned gpio, int value)
 	chip->set(chip, gpio - chip->base, value);
 }
 EXPORT_SYMBOL_GPL(__gpio_set_value);
+
+
+/**
+ * gpio_set_values() - sets values of multiple gpio pins
+ * @gpio: first gpio whose value will be returned
+ * @count: number of gpios to set value of
+ * @values: values to set
+ * Context: any
+ *
+ * This is used directly or indirectly to implement gpio_get_value().
+ * It returns the zero or nonzero value provided by the associated
+ * gpio_chip.get() method; or zero if no such method is provided.
+ */
+int gpio_set_values(unsigned gpio, unsigned count, const int *values)
+{
+	int ret = 0;
+
+	while (count > 0) {
+		struct gpio_chip *chip = gpio_to_chip(gpio);
+		unsigned offs = gpio - chip->base;
+		unsigned num = chip->ngpio - offs;
+
+		if (num > count)
+			num = count;
+
+		if (chip->set_multiple) {
+			chip->set_multiple(chip, offs, num, values);
+		}
+
+		gpio += num;
+		values += num;
+		count -= num;
+	}
+
+	return ret;
+}
+
+EXPORT_SYMBOL_GPL(gpio_set_values);
 
 /**
  * __gpio_cansleep() - report whether gpio value access will sleep
