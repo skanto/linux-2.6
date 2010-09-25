@@ -92,7 +92,7 @@ static void __init efdc_map_io(void)
 	at91_register_uart(USART_DBGU, TTYS_DBGU, 0);
 
 	/* register handlers.. */
-	atmel_register_uart_fns(&atmel_uart_port_fns);
+	//atmel_register_uart_fns(&atmel_uart_port_fns);
 
 	/* USART0 on ttyS1. (Rx, Tx) */
 	at91_register_uart(USART_SER1, TTYS_SER1, 0);
@@ -229,6 +229,11 @@ static struct i2c_board_info efdc_i2c_devices[] = {
 	},
 };
 
+static struct platform_device efdc_gpio_device = {
+	.name			= "efdc-gpio",
+};
+
+
 /*
  * MACB Ethernet device
  */
@@ -288,6 +293,8 @@ static void __init efdc_board_init(void)
 	at91_add_device_mci(0, &efdc_mci_data);
 	/* LEDs */
 	at91_gpio_leds(efdc_leds, ARRAY_SIZE(efdc_leds));
+	/* GPIO */
+	platform_device_register(&efdc_gpio_device);
 }
 
 MACHINE_START(TM_EFDC, "Telemerkki TM-EFDC")
