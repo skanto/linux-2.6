@@ -240,7 +240,7 @@ extern void at91_gpio_resume(void);
  * eventually be removed (along with this errno.h inclusion), and the
  * gpio request/free calls should probably be implemented.
  */
-#ifdef	MACH_TM_EFDC
+#ifdef	CONFIG_MACH_TM_EFDC
 #define	ARCH_NR_GPIOS	512
 #endif
 #include <asm/errno.h>
