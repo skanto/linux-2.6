@@ -175,10 +175,8 @@ static int tm_efdc_gpio_kthread(void *data)
     // poll digital I/O!!
     poll_dio(dev);
 
-#if 0
     // poll analog I/O
     poll_aio(dev);
-#endif
   }
 
   return 0;
@@ -195,13 +193,6 @@ static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
 	}
 
 	return HRTIMER_RESTART;
-}
-
-
-void efdc_gpio_foo(void)
-{
-  poll_dio(&efdcgpio_dev);
-  poll_aio(&efdcgpio_dev);
 }
 
 
@@ -346,7 +337,6 @@ static const struct {
 		.output = 1,
 		.label = "DOUT"
 	},
-#if 0
 	{
 		.base = TM_EFDC_AIN_BASE,
 		.count = TM_EFDC_AIN_COUNT,
@@ -358,7 +348,6 @@ static const struct {
 		.output = 1,
 		.label = "AOUT"
 	},
-#endif
 	{
 		.label = NULL
 	}
