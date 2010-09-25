@@ -45,6 +45,8 @@
 #include <mach/at91sam9_smc.h>
 
 #include <linux/spi/max4896.h>
+#include <linux/spi/ltc186x.h>
+#include <linux/spi/ad5666.h>
 
 #include "sam9_smc.h"
 #include "generic.h"
@@ -126,8 +128,30 @@ static void __init efdc_init_irq(void)
  * SPI devices.
  */
 static struct max4896_platform_data max4896_platform_data = {
-  .base		= TM_EFDC_DIN_BASE,
-  .chips	= 4
+	.base		= TM_EFDC_DIN_BASE,
+	.chips		= 4
+};
+
+static struct ltc186x_platform_data ltc186x_1_platform_data = {
+	.base		= TM_EFDC_AIN_BASE,
+	.channels	= 4,
+};
+
+static struct ltc186x_platform_data ltc186x_2_platform_data = {
+	.base		= TM_EFDC_AIN_BASE + 4,
+	.channels	= 4,
+};
+
+static struct ad5666_platform_data ad5666_1_platform_data = {
+	.base		= TM_EFDC_AOUT_BASE,
+	.ref	 	= 1,
+	.pwr_mask	= 0xF,
+};
+
+static struct ad5666_platform_data ad5666_2_platform_data = {
+	.base		= TM_EFDC_AOUT_BASE + 4,
+	.ref	 	= 1,
+	.pwr_mask	= 0xF,
 };
 
 static struct spi_board_info efdc_spi_devices[] = {
@@ -163,36 +187,38 @@ static struct spi_board_info efdc_spi_devices[] = {
 		.controller_data= (void*)AT91_PIN_PA5,
 	},
 	{	/* ADC1 */
-		.modalias	= "spi-ltc1867",
+		.modalias	= "ltc186x",
 		.chip_select	= 2,
 		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC3,
-		.platform_data	= (void*)TM_EFDC_AIN_BASE,
+		.platform_data	= &ltc186x_1_platform_data,
 	},
 	{	/* ADC2 */
-		.modalias	= "spi-ltc1867",
+		.modalias	= "ltc186x",
 		.chip_select	= 2+4,
 		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC6,
-		.platform_data	= (void*)(TM_EFDC_AIN_BASE+4),
+		.platform_data	= &ltc186x_2_platform_data,
 	},
 	{	/* DAC1 */
-		.modalias	= "spi-ad5666",
+		.modalias	= "ad5666",
 		.chip_select	= 3,
-		.max_speed_hz	= 10 * 1000 * 1000,
+		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
+		.mode		= SPI_MODE_2,
 		.controller_data= (void*)AT91_PIN_PC8,
-		.platform_data	= (void*)TM_EFDC_AOUT_BASE,
+		.platform_data	= &ad5666_1_platform_data,
 	},
 	{	/* DAC2 */
-		.modalias	= "spi-ad5666",
+		.modalias	= "ad5666",
 		.chip_select	= 3+4,
-		.max_speed_hz	= 10 * 1000 * 1000,
+		.max_speed_hz	= 15 * 1000 * 1000,
 		.bus_num	= 0,
+		.mode		= SPI_MODE_2,
 		.controller_data= (void*)AT91_PIN_PC9,
-		.platform_data	= (void*)(TM_EFDC_AOUT_BASE+4),
+		.platform_data	= &ad5666_2_platform_data,
 	},
 	{	/* digital I/O */
 		.modalias	= "max4896",
