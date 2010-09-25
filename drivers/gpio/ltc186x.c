@@ -51,7 +51,6 @@ static __inline int ltc186x_send_cmd(struct ltc186x *ts, u16 cmd, unsigned delay
 	struct spi_transfer	t = {
 		.tx_buf		= (u8*)&cmd,		/* command to send */
 		.len		= 2,			/* number of bytes to transfer */
-		.bits_per_word	= 16,			/* 16-bit words */
 		.rx_buf		= (u8*)dst,		/* destination address */
 		.cs_change	= 1,			/* chip-select must change after xfer */
 		.delay_usecs	=  delay_usecs,		/* we need a delay */
@@ -136,6 +135,7 @@ static int __devinit ltc186x_probe(struct spi_device *spi)
 	/*
 	 * bits_per_word cannot be configured in platform data
 	 */
+	spi->bits_per_word = 16;
 	ret = spi_setup(spi);
 	if (ret < 0)
 		return ret;
