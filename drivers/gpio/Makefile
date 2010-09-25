@@ -15,3 +15,4 @@ obj-$(CONFIG_GPIO_TWL4030)	+= twl4030-gpio.o
 obj-$(CONFIG_GPIO_XILINX)	+= xilinx_gpio.o
 obj-$(CONFIG_GPIO_BT8XX)	+= bt8xxgpio.o
 obj-$(CONFIG_GPIO_TM_EFDC)	+= tm_efdc-gpio.o
+obj-$(CONFIG_GPIO_LTC186X)	+= ltc186x.o

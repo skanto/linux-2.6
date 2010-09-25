@@ -189,6 +189,13 @@ config GPIO_MC74X595
 	  SPI driver for MC74x595 compatible shift register.  This provides
 	  a GPIO interface supporting outputs.
 
+config GPIO_LTC186X
+	tristate "LTC1863/LTC1867 A/D driver"
+	depends on SPI_MASTER
+	help
+	  SPI driver for LTC1863/1867 compatible A/D converters. This provides
+	  a GPIO interface supporting inputs.
+
 config GPIO_TM_EFDC
 	tristate "TM-EFDC I/O driver"
 	depends on SPI_MASTER && MACH_TM_EFDC
