@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.30
-# Thu Sep 23 13:29:15 2010
+# Sat Sep 25 19:10:09 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -759,6 +759,8 @@ CONFIG_GPIO_MAX4896=y
 # CONFIG_GPIO_MAX7301 is not set
 # CONFIG_GPIO_MCP23S08 is not set
 # CONFIG_GPIO_MC74X595 is not set
+CONFIG_GPIO_LTC186X=y
+CONFIG_GPIO_AD5666=y
 CONFIG_GPIO_TM_EFDC=y
 # CONFIG_W1 is not set
 # CONFIG_POWER_SUPPLY is not set
