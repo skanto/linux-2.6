@@ -39,9 +39,9 @@ struct max4896 {
 	u8		num_chips;	/* number of chips */
 	struct gpio_chip chip;
 	struct spi_device *spi;
-	u8		*in_level;	/* cached input level */
+	u8		*out_status;	/* cached output status */
 	u8		*out_level;	/* cached output level */
-	u8		out_status[];	/* cached output levels */
+	u8		in_level[];	/* cached input levels */
 };
 
 /**
@@ -55,9 +55,9 @@ struct max4896 {
 static int max4896_transfer(struct max4896 *ts)
 {
 	struct spi_transfer	t = {
-		.tx_buf		= ts->in_level,		/* first ts->num_chips bytes are ignored */
+		.tx_buf		= ts->out_level - ts->num_chips,	/* first ts->num_chips bytes are ignored */
 		.len		= ts->num_chips * 2,	/* number of bytes to transfer */
-		.rx_buf		= ts->out_status,	/* first ts->num_chips are status and next are inputs */
+		.rx_buf		= ts->in_level,		/* first ts->num_chips are inputs and next are status */
 	};
 	struct spi_message	m;
 
@@ -107,7 +107,7 @@ static int max4896_get(struct gpio_chip *chip, unsigned offset)
 	} else if (offset < ts->num_chips * 8 * 2) {
 		/* output status */
 		offset -= ts->num_chips * 8;
-		level = (ts->out_status[offset / 4] >> ((offset % 4) * 2)) & 3U;
+		level = (ts->out_status[offset / 8] & (1U << (offset % 8))) ? INT_MAX : 0;
 	} else {
 	  	/* outputs */
 		offset -= ts->num_chips * 8 * 2;
@@ -125,8 +125,8 @@ static int max4896_get_multiple(struct gpio_chip *chip, unsigned offset, unsigne
 
 	mutex_lock(&ts->lock);
 
-	if (offset < ts->num_chips * 8) {
-		/* inputs, do transfer */
+	if (offset < ts->num_chips * 8 * 2) {
+		/* inputs or output status, do transfer */
 		max4896_transfer(ts);
 	}
 
@@ -139,7 +139,7 @@ static int max4896_get_multiple(struct gpio_chip *chip, unsigned offset, unsigne
 	/* output status: */
 	offset -= ts->num_chips * 8;
 	while (count > 0 && offset < ts->num_chips * 8) {
-		*values++ = (ts->out_status[offset / 4] >> ((offset % 4) * 2)) & 3U;
+		*values++ = (ts->out_status[offset / 8] & (1U << (offset % 8))) ? INT_MAX : 0;
 		offset++; count--;
 	}
 
@@ -183,6 +183,10 @@ static void max4896_set_multiple(struct gpio_chip *chip, unsigned offset, unsign
 	if (offset >= ts->num_chips * 8 * 2) {
 		offset -= ts->num_chips * 8 * 2;
 
+		if ((offset + count) > ts->num_chips * 8) {
+			BUG();
+		}
+
 		mutex_lock(&ts->lock);
 
 		while (count-- > 0) {
@@ -217,13 +221,13 @@ static int __devinit max4896_probe(struct spi_device *spi)
 	if (ret < 0)
 		return ret;
 
-	ts = kzalloc(sizeof(struct max4896) + sizeof(u8) * pdata->chips * 4, GFP_KERNEL);
+	ts = kzalloc(sizeof(struct max4896) + sizeof(u8) * pdata->chips * 3, GFP_KERNEL);
 	if (!ts)
 		return -ENOMEM;
 
 	mutex_init(&ts->lock);
-	ts->in_level = &ts->out_status[pdata->chips * 2];
-	ts->out_level = &ts->out_status[pdata->chips * 3];
+	ts->out_status = &ts->in_level[pdata->chips * 1];
+	ts->out_level = &ts->out_status[pdata->chips * 2];
 
 	dev_set_drvdata(&spi->dev, ts);
 
