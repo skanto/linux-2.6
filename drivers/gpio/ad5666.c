@@ -1,8 +1,6 @@
 /**
  * drivers/gpio/ad5666.c
  *
- * Copyright (C) 2006 Juergen Beisert, Pengutronix
- * Copyright (C) 2008 Guennadi Liakhovetski, Pengutronix
  * Copyright (C) 2010 Sami Kantoluoto, Embedtronics Oy
  *
  * This program is free software; you can redistribute it and/or modify
