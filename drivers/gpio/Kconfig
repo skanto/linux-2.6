@@ -196,6 +196,13 @@ config GPIO_LTC186X
 	  SPI driver for LTC1863/1867 compatible A/D converters. This provides
 	  a GPIO interface supporting inputs.
 
+config GPIO_AD5666
+	tristate "AD5666 D/A driver"
+	depends on SPI_MASTER
+	help
+	  SPI driver for AD5666 compatible D/A converters. This provides
+	  a GPIO interface supporting outputs.
+
 config GPIO_TM_EFDC
 	tristate "TM-EFDC I/O driver"
 	depends on SPI_MASTER && MACH_TM_EFDC
