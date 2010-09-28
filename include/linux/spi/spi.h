@@ -468,6 +468,9 @@ struct spi_message {
 	void			(*complete)(void *context);
 	void			*context;
 	unsigned		actual_length;
+#ifdef	CONFIG_MACH_TM_EFDC
+	unsigned		first_bit:1;
+#endif
 	int			status;
 
 	/* for optional use by whatever driver currently owns the

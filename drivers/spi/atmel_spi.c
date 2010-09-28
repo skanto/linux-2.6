@@ -334,6 +334,11 @@ static void atmel_spi_next_message(struct spi_master *master)
 	} else
 		cs_activate(as, spi);
 
+#ifdef	CONFIG_MACH_TM_EFDC
+	if (spi->master->bus_num == 1)
+		msg->first_bit = at91_get_gpio_value(AT91_PIN_PB0);
+#endif	// CONFIG_MACH_TM_EFDC
+
 	atmel_spi_next_xfer(master, msg);
 }
 
