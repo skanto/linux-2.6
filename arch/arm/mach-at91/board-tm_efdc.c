@@ -44,7 +44,6 @@
 #include <linux/input.h>
 #include <mach/at91sam9_smc.h>
 
-#include <linux/spi/max4896.h>
 #include <linux/spi/ltc186x.h>
 #include <linux/spi/ad5666.h>
 
@@ -127,11 +126,6 @@ static void __init efdc_init_irq(void)
 /*
  * SPI devices.
  */
-static struct max4896_platform_data max4896_platform_data = {
-	.base		= TM_EFDC_DIN_BASE,
-	.chips		= 4
-};
-
 static struct ltc186x_platform_data ltc186x_1_platform_data = {
 	.base		= TM_EFDC_AIN_BASE,
 	.channels	= 4,
@@ -168,7 +162,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* or DataFlash chip */
 		.modalias	= "mtd_dataflash",
 		.chip_select	= 0,
-		.max_speed_hz	= 15 * 1000 * 1000,
+		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PA3,
 	},
@@ -189,7 +183,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* ADC1 */
 		.modalias	= "ltc186x",
 		.chip_select	= 2,
-		.max_speed_hz	= 15 * 1000 * 1000,
+		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC3,
 		.platform_data	= &ltc186x_1_platform_data,
@@ -197,7 +191,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* ADC2 */
 		.modalias	= "ltc186x",
 		.chip_select	= 2+4,
-		.max_speed_hz	= 15 * 1000 * 1000,
+		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PC6,
 		.platform_data	= &ltc186x_2_platform_data,
@@ -205,7 +199,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* DAC1 */
 		.modalias	= "ad5666",
 		.chip_select	= 3,
-		.max_speed_hz	= 15 * 1000 * 1000,
+		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.mode		= SPI_MODE_2,
 		.controller_data= (void*)AT91_PIN_PC8,
@@ -214,19 +208,18 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* DAC2 */
 		.modalias	= "ad5666",
 		.chip_select	= 3+4,
-		.max_speed_hz	= 15 * 1000 * 1000,
+		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 0,
 		.mode		= SPI_MODE_2,
 		.controller_data= (void*)AT91_PIN_PC9,
 		.platform_data	= &ad5666_2_platform_data,
 	},
 	{	/* digital I/O */
-		.modalias	= "max4896",
+		.modalias	= "tm_efdc-dio",
 		.chip_select	= 0+4,
 		.max_speed_hz	= 10 * 1000 * 1000,
 		.bus_num	= 1,
 		.controller_data= (void*)AT91_PIN_PB3,
-		.platform_data	= &max4896_platform_data
 	},
 };
 
