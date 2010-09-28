@@ -25,7 +25,6 @@
 #include <linux/spinlock.h>
 #include <linux/spi/spi.h>
 #include <linux/gpio.h>
-#include <linux/dma-mapping.h>
 
 #define DRIVER_NAME "tm_efdc-dio"
 
@@ -41,9 +40,9 @@ struct tm_efdc_dio {
 	struct spi_message sm;
 	struct spi_transfer st;
 	volatile u8	transfer_busy:1;/* set if transmission is busy */
-	dma_addr_t	rx_dma, tx_dma;
 	u32		in_levels;
 	u32		out_status;
+	u32		dummy;
 	u32		out_levels;
 	void		(*callback)(void *context, u32 inputs, u32 out_status);
 	void		*context;
@@ -54,11 +53,13 @@ static void tm_efdc_dio_spi_complete(void *context)
 {
 	struct tm_efdc_dio *ts = context;
 
-	u32 inp = ts->in_levels;
-	u32 out_stat = ts->out_levels;
+	u32 inp = be32_to_cpu(ts->in_levels);
+	u32 out_stat = be32_to_cpu(ts->out_status);
+
+	inp = (inp >> 1) | (ts->sm.first_bit << 31U);
 
 	if (ts->callback)
-		(*ts->callback)(ts->context, inp, out_stat);
+		(*ts->callback)(ts->context, ~inp, out_stat);
 
 	ts->transfer_busy = 0;
 }
@@ -96,17 +97,14 @@ int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *con
 	ts->callback = complete;
 	ts->context = context;
 
-	ts->out_levels	= dout;
+	ts->out_levels	= cpu_to_be32(dout);
 
 	memset(&ts->st, 0, sizeof(ts->st));
 	ts->st.tx_buf	= &ts->out_levels - 1;			/* first 32-bits are ignored */
-	ts->st.len	= 8;					/* number of bytes to transfer */
 	ts->st.rx_buf	= &ts->in_levels;			/* first ts->num_chips are inputs and next are status */
-	ts->st.tx_dma	= ts->tx_dma;
-	ts->st.rx_dma	= ts->rx_dma;
+	ts->st.len	= 8;					/* number of bytes to transfer */
 
 	spi_message_init(&ts->sm);
-	ts->sm.is_dma_mapped = 1;
 	ts->sm.complete	= tm_efdc_dio_spi_complete;
 	ts->sm.context	= ts;
 	spi_message_add_tail(&ts->st, &ts->sm);
@@ -136,17 +134,6 @@ static int __devinit tm_efdc_dio_probe(struct spi_device *spi)
 
 	spin_lock_init(&ts->lock);
 
-	ts->tx_dma = ts->rx_dma = 0xffffffff;
-	ts->tx_dma = dma_map_single(&spi->dev, &ts->out_levels - 1, 8, DMA_TO_DEVICE);
-
-	if (dma_mapping_error(&spi->dev, ts->tx_dma))
-		goto failure;
-
-	ts->rx_dma = dma_map_single(&spi->dev, &ts->in_levels, 8, DMA_FROM_DEVICE);
-
-	if (dma_mapping_error(&spi->dev, ts->rx_dma))
-		goto failure_2;
-
 	dev_set_drvdata(&spi->dev, ts);
 
 	ts->spi = spi;
@@ -155,16 +142,6 @@ static int __devinit tm_efdc_dio_probe(struct spi_device *spi)
 	dev_info(&spi->dev, "initialized!\n");
 
 	return 0;
-
-failure_2:
-	dma_unmap_single(&spi->dev, ts->tx_dma, 8, DMA_TO_DEVICE);
-
-failure:
-	dev_err(&spi->dev, "dma_mapping failed!\n");
-
-	kfree(ts);
-
-	return -EINVAL;
 }
 
 static int tm_efdc_dio_remove(struct spi_device *spi)
