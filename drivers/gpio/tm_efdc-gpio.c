@@ -51,66 +51,32 @@ struct efdcgpio_dev {
 
 	tm_efdc_gpio_t		*gpio;		// values
 
-	u_int32_t		di_last;	// last state of digital inputs
+	u32			di_last;	// last state of digital inputs
+	u32			do_raw;		// last transmitted do_raw
 	int			di_delay[TM_EFDC_DIN_COUNT];	// current delay value for inputs
 
 	unsigned		pwm_bit;	// PWM-bit number
-	u_int32_t		pwm_value[TM_EFDC_DOUT_COUNT];	// current pwm value
+	u32			pwm_value[TM_EFDC_DOUT_COUNT];	// current pwm value
 
-  	u_int32_t		adc_slide[TM_EFDC_AIN_COUNT];	// sliding window..
+  	u32			adc_slide[TM_EFDC_AIN_COUNT];	// sliding window..
 } efdcgpio_dev = {
 };
 
 /* ......................................................................... */
+int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *context);
 
-static __inline void poll_dio(struct efdcgpio_dev *dev)
+static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
 {
+  struct efdcgpio_dev *dev = context;
+  u32 di_old, di_new;
   int c;
-  u_int32_t do_raw, di_raw, do_bits, do_pwm_ena, di_old, di_new;
-  int val[TM_EFDC_DIN_COUNT + TM_EFDC_DOUT_COUNT];
-
-  // first build word to transfer, take current PWM bit for all channels
-
-  for (c = 0, do_raw = 0; c < TM_EFDC_DOUT_COUNT; c++) {	// process all outputs
-    do_raw <<= 1;
-    do_raw |= (dev->pwm_value[c] >> dev->pwm_bit) & 1;
-  }
-
-  if (++dev->pwm_bit >= TM_EFDC_DOUT_PWM_NBITS) {	// wrap PWM bit number
-    dev->pwm_bit = 0;
-    for (c = 0; c < TM_EFDC_DOUT_COUNT; c++) {		// copy new PWM values
-      dev->pwm_value[c] = dev->gpio->DO_PWM[c];
-    }
-  }
-
-  do_bits = dev->gpio->DO;				// get output states
-  do_pwm_ena = dev->gpio->DO_PWM_Ena;			// get mask of PWM channels
-  do_raw = (do_raw & do_pwm_ena & do_bits) | (do_bits & ~do_pwm_ena);
-
-  // transfer to GPIO..
-  for (c = 0; c < TM_EFDC_DOUT_COUNT; c++) {		// interface is a bit stupid..
-    val[c] = do_raw & (1U << c) ? 1 : 0;
-  }
-  gpio_set_values(TM_EFDC_DOUT_BASE, TM_EFDC_DOUT_COUNT, &val[0]);
-
-  // read GPIO:
-  gpio_get_values(TM_EFDC_DIN_BASE, TM_EFDC_DIN_COUNT + TM_EFDC_DOUT_COUNT, &val[0]);
-
-  for (di_raw = 0, c = 0; c < TM_EFDC_DIN_COUNT; c++) {
-    di_raw <<= 1;
-    if (val[c]) {
-      di_raw |= 1;
-    }
-  }
-
-  // process status bits:
 
   // combine...
 
-  di_raw ^= dev->gpio->DI_Invert;			// apply invert
+  di_raw = ~di_raw ^ dev->gpio->DI_Invert;		// apply invert
 
+  dev->gpio->DO_Raw = dev->do_raw;			// show to user-space too
   dev->gpio->DI_Raw = di_raw;
-  dev->gpio->DO_Raw = do_raw;				// show to user-space too
 
   // filter inputs:
   di_old = dev->di_last;				// get last state of inputs
@@ -137,6 +103,34 @@ static __inline void poll_dio(struct efdcgpio_dev *dev)
   dev->gpio->DI = dev->di_last = di_new;		// update state
 }
 
+static __inline void poll_dio(struct efdcgpio_dev *dev)
+{
+  int c;
+  u32 do_raw, do_bits, do_pwm_ena;
+
+  // first build word to transfer, take current PWM bit for all channels
+  for (c = 0, do_raw = 0; c < TM_EFDC_DOUT_COUNT; c++) {	// process all outputs
+    do_raw <<= 1;
+    do_raw |= (dev->pwm_value[c] >> dev->pwm_bit) & 1;
+  }
+
+  if (++dev->pwm_bit >= TM_EFDC_DOUT_PWM_NBITS) {	// wrap PWM bit number
+    dev->pwm_bit = 0;
+    for (c = 0; c < TM_EFDC_DOUT_COUNT; c++) {		// copy new PWM values
+      dev->pwm_value[c] = dev->gpio->DO_PWM[c];
+    }
+  }
+
+  do_bits = dev->gpio->DO;				// get output states
+  do_pwm_ena = dev->gpio->DO_PWM_Ena;			// get mask of PWM channels
+  do_raw = (do_raw & do_pwm_ena & do_bits) | (do_bits & ~do_pwm_ena);
+
+  dev->do_raw = do_raw;
+
+  // transfer data:
+  tm_efdc_dio_transfer(do_raw, tm_efdc_gpio_dio_polled, dev);
+}
+
 static __inline void poll_aio(struct efdcgpio_dev *dev)
 {
   int c;
@@ -155,9 +149,9 @@ static __inline void poll_aio(struct efdcgpio_dev *dev)
 
   // sliding window filtering for analog inputs:
   for (c = 0; c < TM_EFDC_AIN_COUNT; c++) {
-    u_int32_t slide = dev->adc_slide[c];
+    u32 slide = dev->adc_slide[c];
     slide -= (slide + ADC_SLIDE_WIN / 2) / ADC_SLIDE_WIN;
-    slide += (u_int16_t)val[c];
+    slide += (u16)val[c];
     dev->adc_slide[c] = slide;
     dev->gpio->AI[c] = slide / ADC_SLIDE_WIN;
   }
@@ -172,9 +166,6 @@ static int tm_efdc_gpio_kthread(void *data)
     set_current_state(TASK_UNINTERRUPTIBLE);
     schedule();
 
-    // poll digital I/O!!
-    poll_dio(dev);
-
     // poll analog I/O
     poll_aio(dev);
   }
@@ -183,11 +174,14 @@ static int tm_efdc_gpio_kthread(void *data)
 }
 
 /* ......................................................................... */
-
 static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
 {
 	hrtimer_add_expires_ns(tmr, POLL_INTERVAL);
 
+	// poll digital I/O
+	poll_dio(&efdcgpio_dev);
+
+	// wake up thread..
 	if (efdcgpio_dev.kthread) {
 		wake_up_process(efdcgpio_dev.kthread);
 	}
@@ -321,6 +315,7 @@ static const struct {
 	int		output;
 	const char *	label;
 } gpio_table[] = {
+#if 0
 	{
 		.base = TM_EFDC_DIN_BASE,
 		.count = TM_EFDC_DIN_COUNT,
@@ -337,6 +332,7 @@ static const struct {
 		.output = 1,
 		.label = "DOUT"
 	},
+#endif
 	{
 		.base = TM_EFDC_AIN_BASE,
 		.count = TM_EFDC_AIN_COUNT,
@@ -533,13 +529,11 @@ static void __exit tm_efdc_gpio_exit(void)
 }
 
 //module_init(tm_efdc_gpio_init);
-//module_exit(tm_efdc_gpio_exit);
 
 late_initcall(tm_efdc_gpio_init);
-
+module_exit(tm_efdc_gpio_exit);
 
 MODULE_AUTHOR("Sami Kantoluoto");
 MODULE_DESCRIPTION("GPIO driver for TM-EFDC board");
 MODULE_LICENSE("GPL");
-//MODULE_ALIAS_MISCDEV(WATCHDOG_MINOR);
 MODULE_ALIAS("platform:efdc-gpio");
