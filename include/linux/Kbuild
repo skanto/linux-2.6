@@ -154,6 +154,7 @@ header-y += times.h
 header-y += tiocl.h
 header-y += tipc.h
 header-y += tipc_config.h
+header-y += tm_efdc-gpio.h
 header-y += toshiba.h
 header-y += udf_fs_i.h
 header-y += ultrasound.h
