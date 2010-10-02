@@ -45,15 +45,20 @@
 struct efdcgpio_dev {
 	struct hrtimer		timer;		// timer for constant polling
 	struct task_struct	*kthread;	// kthread for polling
-	struct fasync_struct	*async_queue;	// queue for the misc device
-	wait_queue_head_t	misc_wait;	// wait queue for the misc device
-	unsigned long		misc_opened;	//
 
 	tm_efdc_gpio_t		*gpio;		// values
+
+	unsigned		configured:1;	// set if device has been configured
 
 	u32			di_last;	// last state of digital inputs
 	u32			do_raw;		// last transmitted do_raw
 	int			di_delay[TM_EFDC_DIN_COUNT];	// current delay value for inputs
+
+	u32			pwr_last;	// last state of power bits
+	int			pwr_delay[2];	// delay value for power bits
+
+	u32			id_last;	// last state of ID switches:
+	int			id_delay;	// delay value for ID switches
 
 	unsigned		pwm_bit;	// PWM-bit number
 	u32			pwm_value[TM_EFDC_DOUT_COUNT];	// current pwm value
@@ -62,45 +67,85 @@ struct efdcgpio_dev {
 } efdcgpio_dev = {
 };
 
+static const volatile u16 pwr_on_delay[2] = { 500, 500 };
+static const volatile u16 pwr_off_delay[2] = { 500, 500 };
+
+#if TM_EFDC_DOUT_PWM_NBITS == 32
+static const u32 pwm_32_table[33] = {
+  0x00000000, 0x00000001, 0x00010001, 0x00200801, 0x01010101, 0x04082041,
+  0x08210821, 0x08844221, 0x11111111, 0x12244891, 0x24492449, 0x24929249,
+  0x29292929, 0x4A5294A5, 0x4AA54AA5, 0x54AAAA55, 0x55555555, 0x55AAAB55,
+  0x5AB55AB5, 0x6B5AB5AD, 0x6D6D6D6D, 0x6DB6DB6D, 0xB6DBB6DB, 0xB76EEDDB,
+  0xBBBBBBBB, 0xBDDEF77B, 0xDEF7DEF7, 0xDFBEFBF7, 0xEFEFEFEF, 0xF7FEFFDF,
+  0xFEFFFEFF, 0xFFFEFFFF, 0xFFFFFFFF
+};
+#define	pwm_table	pwm_32_table
+#endif
+
+#if TM_EFDC_DOUT_PWM_NBITS == 20
+static const u32 pwm_20_table[21] = {
+  0x00000, 0x00001, 0x00401, 0x02081, 0x08421, 0x11111, 0x22489, 0x24A49,
+  0x4A529, 0x52A95, 0x55555, 0x5AAB5, 0x6B5AD, 0x6DB6D, 0xB6EDB, 0xBBBBB,
+  0xDEF7B, 0xDFBF7, 0xF7FDF, 0xFFBFF, 0xFFFFF
+};
+#define	pwm_table	pwm_20_table
+#endif
+
+#if TM_EFDC_DOUT_PWM_NBITS == 10
+static const u32 pwm_10_table[11] = {
+  0x000, 0x001, 0x021, 0x089, 0x129, 0x155, 0x1AD, 0x2DB, 0x37B, 0x3DF, 0x3FF
+};
+#define	pwm_table	pwm_10_table
+#endif
+
+#ifndef	pwm_table
+#error	Check TM_EFDC_DOUT_PWM_NBITS!
+#endif
+
 /* ......................................................................... */
 int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *context);
+
+static u32 tm_efdc_gpio_in_filter(struct efdcgpio_dev *dev, int count, u32 raw, u32 state,
+				  int *delay, volatile const u16 *ond, volatile const u16 *offd)
+{
+  u32 new_state = state;				// prepare new state
+  int c;
+
+  for (c = 0; c < count; c++) {
+    if (raw & (1U << c)) {				// new sample was 1:
+      if (++delay[c] >= 0) {				  // time to change filtered state
+	if (!(state & (1U << c))) {			    // old filtered state was 0:
+	  dev->gpio->DI_Pulses[c]++;			      // increment pulse count
+	}
+	new_state |= (1U << c);				    // update state
+	delay[c] = offd[c];				    // reset delay
+      }
+    } else {						// new sample was 0:
+      if (--delay[c] <= 0) {				  // time to change filtered state
+	new_state &= ~(1U << c);			    // update state
+	delay[c] = -ond[c];				    // reset delay
+      }
+    }
+  }
+
+  return new_state;
+}
 
 static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
 {
   struct efdcgpio_dev *dev = context;
-  u32 di_old, di_new;
-  int c;
+  u32 di_new;
 
   // combine...
-
-  di_raw = ~di_raw ^ dev->gpio->DI_Invert;		// apply invert
+  di_raw ^= dev->gpio->DI_Invert;			// apply invert
 
   dev->gpio->DO_Raw = dev->do_raw;			// show to user-space too
   dev->gpio->DI_Raw = di_raw;
 
   // filter inputs:
-  di_old = dev->di_last;				// get last state of inputs
-  di_new = di_old;					// prepare new state of inputs
-
-  for (c = 0; c < TM_EFDC_DIN_COUNT; c++) {
-    if (di_raw & (1U << c)) {				// new sample was 1:
-      if (++dev->di_delay[c] >= 0) {			  // time to change filtered state
-	if (!(di_old & (1U << c))) {			    // old filtered state was 0:
-	  dev->gpio->DI_Pulses[c]++;			      // increment pulse count
-	  printk(KERN_INFO DRIVER_NAME "di#%u: pulses=%u\n", c+1, dev->gpio->DI_Pulses[c]);
-	}
-	dev->di_delay[c] = dev->gpio->DI_OffDelay[c];       // reset delay
-	di_new |= (1U << c);				    // update state
-      }
-    } else {						// new sample was 0:
-      if (--dev->di_delay[c] <= 0) {			  // time to change filtered state
-	dev->di_delay[c] = -dev->gpio->DI_OnDelay[c];       // reset delay
-	di_new &= ~(1U << c);				    // update state
-      }
-    }
-  }
-
-  dev->gpio->DI = dev->di_last = di_new;		// update state
+  di_new = tm_efdc_gpio_in_filter(dev, TM_EFDC_DIN_COUNT, di_raw, dev->di_last,
+				  dev->di_delay, dev->gpio->DI_OnDelay, dev->gpio->DI_OffDelay);
+  dev->gpio->DI = dev->di_last = di_new;
 }
 
 static __inline void poll_dio(struct efdcgpio_dev *dev)
@@ -117,7 +162,12 @@ static __inline void poll_dio(struct efdcgpio_dev *dev)
   if (++dev->pwm_bit >= TM_EFDC_DOUT_PWM_NBITS) {	// wrap PWM bit number
     dev->pwm_bit = 0;
     for (c = 0; c < TM_EFDC_DOUT_COUNT; c++) {		// copy new PWM values
-      dev->pwm_value[c] = dev->gpio->DO_PWM[c];
+      int p = dev->gpio->DO_PWM_Set[c], mp = dev->gpio->DO_PWM_Min[c];
+      if (p < mp) {
+	p = mp;
+      }
+      dev->gpio->DO_PWM[c] = p;
+      dev->pwm_value[c] = pwm_table[(((unsigned)p * TM_EFDC_DOUT_PWM_NBITS + 50) / 100)];
     }
   }
 
@@ -168,21 +218,56 @@ static int tm_efdc_gpio_kthread(void *data)
 
     // poll analog I/O
     poll_aio(dev);
+
+    // increment counter
+    dev->gpio->PollCount++;
   }
 
   return 0;
 }
 
+#define	ID_SWITCH_DELAY	200
+
 /* ......................................................................... */
 static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
 {
+	struct efdcgpio_dev *dev = &efdcgpio_dev;
+
+	// get switches and power status:
+	u32 portb = at91_sys_read(AT91_PIOB + PIO_PDSR);	// read port B inputs
+	u32 portc = at91_sys_read(AT91_PIOC + PIO_PDSR);	// read port C inputs
+
 	hrtimer_add_expires_ns(tmr, POLL_INTERVAL);
 
 	// poll digital I/O
-	poll_dio(&efdcgpio_dev);
+	if (dev->gpio->Configured || dev->configured) {
+		dev->configured = 1;
+		poll_dio(dev);
+	}
+
+	// filter power bits:
+	dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, (portc >> 13), dev->pwr_last,
+					       dev->pwr_delay, pwr_on_delay, pwr_off_delay);
+	dev->gpio->Power = dev->pwr_last;
+
+	// filter switch inputs:
+	portb = ((~portb) >> 24) & 0xff;
+
+	if (portb == dev->id_last) {
+		if (--dev->id_delay <= 0) {
+			dev->gpio->ID = portb;
+			dev->id_delay = ID_SWITCH_DELAY;
+		}
+	} else {
+		if (++dev->id_delay > ID_SWITCH_DELAY) {
+			dev->id_delay = ID_SWITCH_DELAY;
+		}
+	}
+
+	dev->id_last = portb;
 
 	// wake up thread..
-	if (efdcgpio_dev.kthread) {
+	if (dev->configured && efdcgpio_dev.kthread) {
 		wake_up_process(efdcgpio_dev.kthread);
 	}
 
@@ -197,9 +282,6 @@ static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
  */
 static int tm_efdc_gpio_open(struct inode *inode, struct file *file)
 {
-	if (test_and_set_bit(0, &efdcgpio_dev.misc_opened))
-		return -EBUSY;
-
 	return nonseekable_open(inode, file);
 }
 
@@ -208,8 +290,6 @@ static int tm_efdc_gpio_open(struct inode *inode, struct file *file)
  */
 static int tm_efdc_gpio_close(struct inode *inode, struct file *file)
 {
-	//kthread_stop(efdcgpio_dev.kthread);
-	clear_bit(0, &efdcgpio_dev.misc_opened);
 	return 0;
 }
 
@@ -462,7 +542,6 @@ static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 	if (IS_ERR(efdcgpio_dev.kthread)) {
 		int ret = PTR_ERR(efdcgpio_dev.kthread);
 		printk(KERN_ERR DRIVER_NAME ": kthread_create() failed: %d\n", ret);
-		clear_bit(0, &efdcgpio_dev.misc_opened);
 		return ret;
 	}
 	efdcgpio_dev.kthread->prio = 1;	// @@@ we want priority!
