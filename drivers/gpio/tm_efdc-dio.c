@@ -56,6 +56,7 @@ static void tm_efdc_dio_spi_complete(void *context)
 	u32 inp = be32_to_cpu(ts->in_levels);
 	u32 out_stat = be32_to_cpu(ts->out_status);
 
+	out_stat = (out_stat >> 1) | (inp << 31U);
 	inp = (inp >> 1) | (ts->sm.first_bit << 31U);
 
 	if (ts->callback)
