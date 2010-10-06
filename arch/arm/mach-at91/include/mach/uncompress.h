@@ -69,8 +69,34 @@ static inline void flush(void)
 #endif
 }
 
-#define arch_decomp_setup()
 
+#ifdef	CONFIG_MACH_TM_EFDC
+
+#include <mach/hardware.h>
+#include <mach/io.h>
+#include <mach/at91_pio.h>
+
+#define arch_decomp_setup() do {\
+	at91_sys_write(AT91_PIOC + PIO_PER, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_OER, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_SODR, 1U<<2);\
+} while (/*CONSTCOND*/0)
+
+#define	arch_decomp_wdog() do {\
+	at91_sys_write(AT91_PIOC + PIO_SODR, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_SODR, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_SODR, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_SODR, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_CODR, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_CODR, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_CODR, 1U<<2);\
+	at91_sys_write(AT91_PIOC + PIO_CODR, 1U<<2);\
+} while (/*CONSTCOND*/0)
+
+#else	// !CONFIG_MACH_TM_EFDC
+
+#define arch_decomp_setup()
 #define arch_decomp_wdog()
+#endif
 
 #endif
