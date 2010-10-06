@@ -405,16 +405,6 @@ config MACH_SBC35_A9G20
 	help
 	  Select this if you are using a Calao Systems SBC35-A9G20.
 	  <http://www.calao-systems.com>
-
-config MACH_TM_EFDC
-	bool "Telemerkki TM-EFDC Ethernet I/O unit"
-	select GENERIC_GPIO
-	select ARCH_REQUIRE_GPIOLIB
-	depends on ARCH_AT91SAM9G20
-	help
-	  Select this if you are using Telemerkki's TM-EFDC Ethernet I/O unit.
-	  <http://www.telemerkki.fi/eng/?ID=1407>
-
 endif
 
 # ----------------------------------------------------------
@@ -504,6 +494,17 @@ config MACH_AT91EB01
 	  Skyeye simulator.
 
 endif
+
+# ----------------------------------------------------------
+
+config MACH_TM_EFDC
+	bool "Telemerkki TM-EFDC Ethernet I/O unit"
+	select GENERIC_GPIO
+	select ARCH_REQUIRE_GPIOLIB
+	depends on (ARCH_AT91SAM9260 || ARCH_AT91SAM9G20)
+	help
+	  Select this if you are using Telemerkki's TM-EFDC Ethernet I/O unit.
+	  <http://www.telemerkki.fi/eng/?ID=1407>
 
 # ----------------------------------------------------------
 
