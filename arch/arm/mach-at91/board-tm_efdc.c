@@ -162,7 +162,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* or DataFlash chip */
 		.modalias	= "mtd_dataflash",
 		.chip_select	= 0,
-		.max_speed_hz	= 5 * 1000 * 1000,
+		.max_speed_hz	= 8 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PA3,
 	},
@@ -176,7 +176,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* CAN */
 		.modalias	= "spi-mc251x",
 		.chip_select	= 1+4,
-		.max_speed_hz	= 5 * 1000 * 1000,
+		.max_speed_hz	= 4 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PA5,
 	},
@@ -217,7 +217,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* digital I/O */
 		.modalias	= "tm_efdc-dio",
 		.chip_select	= 0,
-		.max_speed_hz	= 5 * 1000 * 1000,
+		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 		.controller_data= (void*)AT91_PIN_PB3,
 	},
