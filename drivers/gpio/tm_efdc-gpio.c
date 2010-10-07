@@ -252,7 +252,7 @@ static __inline void poll_aio(struct efdcgpio_dev *dev)
   for (c = 0; c < TM_EFDC_AIN_COUNT; c++) {
     u32 slide = dev->adc_slide[c];
     slide -= (slide + ADC_SLIDE_WIN / 2) / ADC_SLIDE_WIN;
-    slide += (u16)val[c];
+    slide += val[c];
     dev->adc_slide[c] = slide;
     dev->gpio->AI[c] = slide / ADC_SLIDE_WIN;
   }

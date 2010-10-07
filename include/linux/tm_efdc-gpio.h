@@ -33,7 +33,7 @@ typedef volatile struct tm_efdc_gpio {
   __u8		DO_PWM_Set[TM_EFDC_DOUT_COUNT];	// PWM value to set (percent) (W)
   __u8		DO_PWM_Min[TM_EFDC_DOUT_COUNT];	// minimum PWM-values (percent) (R/W)
   __u16		AO[TM_EFDC_AOUT_COUNT];		// Analog Output values (raw)
-  __s16		AI[TM_EFDC_AIN_COUNT];		// Analog Input values (raw values but filtered)
+  __u16		AI[TM_EFDC_AIN_COUNT];		// Analog Input values (raw values but filtered)
 
   __u32		PollCount;			// Counter gets incremented every poll
   __u8		Configured;			// Application must set this when configured
