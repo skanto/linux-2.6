@@ -381,12 +381,12 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 
 	case EFDCIOC_SET_DI_INV:
 #if 1
-		if (copy_from_user(argp, &u32, 4))
+		if (copy_from_user(&u32, argp, 4))
 			return -EFAULT;
 		gpio->DI_Invert = u32[0];
 		return 0;
 #else
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DIN_COUNT || set.value < 0 || set.value > 1)
 			return -EINVAL;
@@ -417,7 +417,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 
 	case EFDCIOC_SET_DI_ONDELAY:
 	case EFDCIOC_SET_DI_OFFDELAY:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DIN_COUNT || set.value < 0 || set.value > 65535)
 			return -EINVAL;
@@ -444,7 +444,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return copy_to_user(argp, &u64, 8) ? -EFAULT : 0;
 
 	case EFDCIOC_SET_DO:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DOUT_COUNT || set.value < 0 || set.value > 1)
 			return -EINVAL;
@@ -455,7 +455,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return 0;
 
 	case EFDCIOC_SET_DO_2:
-		if (copy_from_user(argp, &set2, sizeof(set2)))
+		if (copy_from_user(&set2, argp, sizeof(set2)))
 			return -EFAULT;
 		gpio->DO = (gpio->DO & ~set2.mask) | (set2.states & set2.mask);
 		return 0;
@@ -469,7 +469,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return copy_to_user(argp, &u32, 4) ? -EFAULT : 0;
 
 	case EFDCIOC_SET_DO_PWM_ENA:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DIN_COUNT || set.value < 0 || set.value > 1)
 			return -EINVAL;
@@ -480,13 +480,13 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return 0;
 
 	case EFDCIOC_SET_DO_PWM_ENA_2:
-		if (copy_from_user(argp, &set2, sizeof(set2)))
+		if (copy_from_user(&set2, argp, sizeof(set2)))
 			return -EFAULT;
 		gpio->DO_PWM_Ena = (gpio->DO_PWM_Ena & ~set2.mask) | (set2.states & set2.mask);
 		return 0;
 
 	case EFDCIOC_GET_DO_PWM:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DOUT_COUNT)
 			return -EINVAL;
@@ -501,7 +501,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 
 	case EFDCIOC_SET_DO_PWM:
 	case EFDCIOC_SET_DO_PWM_MIN:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DOUT_COUNT || set.value < 0 || set.value > 100)
 			return -EINVAL;
@@ -512,7 +512,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return 0;
 
 	case EFDCIOC_GET_AO:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_AOUT_COUNT)
 			return -EINVAL;
@@ -520,7 +520,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return copy_to_user(argp, &set, sizeof(set)) ? -EFAULT : 0;
 
 	case EFDCIOC_SET_AO:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_AOUT_COUNT || set.value < 0 || set.value > 65535)
 			return -EINVAL;
@@ -528,7 +528,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return 0;
 
 	case EFDCIOC_GET_AI:
-		if (copy_from_user(argp, &set, sizeof(set)))
+		if (copy_from_user(&set, argp, sizeof(set)))
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_AIN_COUNT)
 			return -EINVAL;
@@ -540,7 +540,7 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 		return copy_to_user(argp, &i, sizeof(i)) ? -EFAULT : 0;
 
 	case EFDCIOC_SET_CONFIGURED:
-		if (copy_from_user(argp, &i, sizeof(i)))
+		if (copy_from_user(&i, argp, sizeof(i)))
 			return -EFAULT;
 		gpio->Configured = i != 0;
 		return 0;
