@@ -205,7 +205,7 @@ static __inline void poll_dio(struct efdcgpio_dev *dev)
   u32 do_raw, do_bits, do_pwm_ena;
 
   // first build word to transfer, take current PWM bit for all channels
-  for (c = 0, do_raw = 0; c < TM_EFDC_DOUT_COUNT; c++) {	// process all outputs
+  for (c = TM_EFDC_DOUT_COUNT - 1, do_raw = 0; c >= 0; c--) {	// process all outputs
     do_raw <<= 1;
     do_raw |= (dev->pwm_value[c] >> dev->pwm_bit) & 1;
   }
@@ -505,9 +505,10 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DOUT_COUNT || set.value < 0 || set.value > 100)
 			return -EINVAL;
-		if (cmd == EFDCIOC_SET_DO_PWM)
+		if (cmd == EFDCIOC_SET_DO_PWM) {
+			gpio->DO_PWM_Set[set.num] = set.value;
 			gpio->DO_PWM[set.num] = set.value;
-		else
+		} else
 			gpio->DO_PWM_Min[set.num] = set.value;
 		return 0;
 
