@@ -52,7 +52,6 @@ static __inline int ltc186x_send_cmd(struct ltc186x *ts, u16 cmd, unsigned delay
 		.tx_buf		= (u8*)&cmd,		/* command to send */
 		.len		= 2,			/* number of bytes to transfer */
 		.rx_buf		= (u8*)dst,		/* destination address */
-		.cs_change	= 1,			/* chip-select must change after xfer */
 		.delay_usecs	=  delay_usecs,		/* we need a delay */
 	};
 	struct spi_message	m;
