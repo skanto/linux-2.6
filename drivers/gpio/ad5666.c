@@ -135,6 +135,7 @@ static void ad5666_set_multiple(struct gpio_chip *chip, unsigned offset, unsigne
 	while (count-- > 0) {
 		ts->value[offset] = *values++;
 		ad5666_wr_chn(ts, offset, ts->value[offset], count == 0);
+		offset++;
 	}
 
 	mutex_unlock(&ts->lock);
