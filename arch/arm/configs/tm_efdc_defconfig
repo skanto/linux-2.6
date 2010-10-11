@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.30
-# Thu Sep 30 13:52:26 2010
+# Mon Oct 11 11:08:09 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -560,7 +560,7 @@ CONFIG_PHYLIB=y
 #
 # MII PHY device drivers
 #
-CONFIG_MARVELL_PHY=y
+# CONFIG_MARVELL_PHY is not set
 # CONFIG_DAVICOM_PHY is not set
 # CONFIG_QSEMI_PHY is not set
 # CONFIG_LXT_PHY is not set
