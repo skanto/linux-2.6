@@ -47,6 +47,10 @@
 #include <linux/spi/ltc186x.h>
 #include <linux/spi/ad5666.h>
 
+#include <linux/phy.h>
+#include <linux/ethtool.h>
+#include <linux/phy_fixed.h>
+
 #include "sam9_smc.h"
 #include "generic.h"
 
@@ -293,6 +297,12 @@ static struct gpio_led efdc_leds[] = {
 
 static void __init efdc_board_init(void)
 {
+	struct fixed_phy_status fixed_phy_status = {
+		.link			= 1,
+		.speed			= SPEED_100,
+		.duplex			= DUPLEX_FULL,
+	};
+
 	/* Serial */
 	at91_add_device_serial();
 	/* Watchdog */
@@ -307,6 +317,9 @@ static void __init efdc_board_init(void)
 	i2c_register_board_info(0, efdc_i2c_devices, ARRAY_SIZE(efdc_i2c_devices));
 	platform_device_register(&efdc_i2c_device);
 	/* Ethernet */
+	if (fixed_phy_add(PHY_POLL, 1, &fixed_phy_status) != 0) {
+		printk(KERN_ERR "fixed_phy_add() failed!\n");
+	}
 	at91_add_device_eth(&efdc_macb_data);
 	/* MMC */
 	at91_add_device_mci(0, &efdc_mci_data);

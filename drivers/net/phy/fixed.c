@@ -202,6 +202,15 @@ err_regs:
 }
 EXPORT_SYMBOL_GPL(fixed_phy_add);
 
+#ifdef	CONFIG_MACH_TM_EFDC
+struct mii_bus *fixed_mdio_bus(void)
+{
+	return platform_fmb.mii_bus;
+}
+
+EXPORT_SYMBOL_GPL(fixed_mdio_bus);
+#endif	// CONFIG_MACH_TM_EFDC
+
 static int __init fixed_mdio_bus_init(void)
 {
 	struct fixed_mdio_bus *fmb = &platform_fmb;

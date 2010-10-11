@@ -248,10 +248,24 @@ static int macb_mii_probe(struct net_device *dev)
 	return 0;
 }
 
+#ifdef	CONFIG_MACH_TM_EFDC
+extern struct mii_bus *fixed_mdio_bus(void);
+#endif	// CONFIG_MACH_TM_EFDC
+
 static int macb_mii_init(struct macb *bp)
 {
 	struct eth_platform_data *pdata;
 	int err = -ENXIO, i;
+
+#ifdef	CONFIG_MACH_TM_EFDC
+	bp->mii_bus = fixed_mdio_bus();
+
+	if (bp->mii_bus) {
+		platform_set_drvdata(bp->dev, bp->mii_bus);
+
+		return macb_mii_probe(bp->dev) == 0 ? 0 : -ENXIO;
+	}
+#endif	// CONFIG_MACH_TM_EFDC
 
 	/* Enable managment port */
 	macb_writel(bp, NCR, MACB_BIT(MPE));
