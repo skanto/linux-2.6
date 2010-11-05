@@ -46,6 +46,7 @@
 
 #include <linux/spi/ltc186x.h>
 #include <linux/spi/ad5666.h>
+#include <linux/spi/flash.h>
 
 #include <linux/phy.h>
 #include <linux/ethtool.h>
@@ -152,17 +153,21 @@ static struct ad5666_platform_data ad5666_2_platform_data = {
 	.pwr_mask	= 0xF,
 };
 
+static struct flash_platform_data m25p80_platform_data = {
+	.name		= "m25p32"
+};
+
 static struct spi_board_info efdc_spi_devices[] = {
-#if 0
+#if 1
 	{	/* SPI-flash chip */
 		.modalias	= "m25p80",
-		.irq		= -1,
 		.chip_select	= 0,
-		.max_speed_hz	= 20 * 1000 * 1000,
+		.max_speed_hz	= 8 * 1000 * 1000,
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PA3,
+		.platform_data	= &m25p80_platform_data,
 	},
-#endif
+#else
 	{	/* or DataFlash chip */
 		.modalias	= "mtd_dataflash",
 		.chip_select	= 0,
@@ -170,6 +175,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 		.bus_num	= 0,
 		.controller_data= (void*)AT91_PIN_PA3,
 	},
+#endif
 	{	/* KS8995MA switch */
 		.modalias	= "spi-ks8995",
 		.chip_select	= 1,
