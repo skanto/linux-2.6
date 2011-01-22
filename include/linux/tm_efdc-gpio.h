@@ -39,6 +39,16 @@ typedef volatile struct tm_efdc_gpio {
   __u8		Configured;			// Application must set this when configured
 } tm_efdc_gpio_t;
 
+
+// event structure:
+typedef __u8 tm_efdc_gpio_event_t;
+#define	EFDC_EVN_DIN	0x01			// DIN changed
+#define	EFDC_EVN_DOUT	0x04			// DOUT changed
+#define	EFDC_EVN_DOUT_S	0x02			// DOUT status changed
+#define	EFDC_EVN_AOUT	0x08			// AOUT changed
+#define	EFDC_EVN_POWER	0x10			// power status has changed
+
+
 // I/O control interface:
 #define	EFDC_IOCTL_BASE	'E'
 

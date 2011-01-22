@@ -42,11 +42,25 @@
 #define	ADC_SLIDE_WIN		16		// length of ADC sliding window
 #define	LOAD_DET_INTERVAL	5000		// open-load detection interval (in ms)
 
+typedef struct efdcgpio_file_private {
+	int			din_evn_num;	// DIN event number
+	int			dout_evn_num;	// DOUT event number
+	int			dout_status_evn_num;	// DOUT status event number
+	int			aout_evn_num;	// AOUT event number
+	int			power_evn_num;	// power status event number
+} efdcgpio_file_private_t;
+
 static struct efdcgpio_dev {
 	struct hrtimer		timer;		// timer for constant polling
 	struct task_struct	*kthread;	// kthread for polling
 
 	tm_efdc_gpio_t		*gpio;		// values
+
+	atomic_t		din_evn_num;	// DIN event number
+	atomic_t		dout_evn_num;	// DOUT event number
+	atomic_t		dout_status_evn_num;	// DOUT status event number
+	atomic_t		aout_evn_num;	// AOUT event number
+	atomic_t		power_evn_num;	// power event number
 
 	unsigned		configured:1;	// set if device has been configured
 
@@ -72,6 +86,7 @@ static struct efdcgpio_dev {
 	.configured		= 0,
 };
 
+static DECLARE_WAIT_QUEUE_HEAD(tm_efdc_gpio_event_queue);
 static const volatile u16 pwr_on_delay[2] = { 500, 500 };
 static const volatile u16 pwr_off_delay[2] = { 500, 500 };
 
@@ -144,8 +159,10 @@ static u32 tm_efdc_gpio_in_filter(struct efdcgpio_dev *dev, int count, u32 raw, 
 static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
 {
   struct efdcgpio_dev *dev = context;
-  u32 di_new;
+  u32 di_new, di_old;
+  u64 do_status;
   int ldet;
+  int evn = 0;
 
   // combine...
   di_raw ^= dev->gpio->DI_Invert;			// apply invert
@@ -154,12 +171,19 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
   dev->gpio->DI_Raw = di_raw;
 
   // filter inputs:
-  di_new = tm_efdc_gpio_in_filter(dev, TM_EFDC_DIN_COUNT, di_raw, dev->di_last,
+  di_old = dev->di_last;
+  di_new = tm_efdc_gpio_in_filter(dev, TM_EFDC_DIN_COUNT, di_raw, di_old,
 				  dev->di_delay, dev->gpio->DI_OnDelay, dev->gpio->DI_OffDelay);
-  dev->gpio->DI = dev->di_last = di_new;
+  if (di_new != di_old) {
+    dev->di_last = di_new;
+    evn |= 1;
+  }
+
+  dev->gpio->DI = di_new;
 
   // was load state detection active:
   ldet = at91_get_gpio_value(EFDC_PIN_LOAD_DET);
+
   if (!ldet) {						// load detection was active:
     dev->do_float = 0;					// so nothing floats by default..
   }
@@ -172,7 +196,7 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
 
     err = dev->do_float;				// current errors
 
-    err1 = !ldet ? 0x02 : 0x01;				// error 1 (0x01 = shortcut, 0x02 = floating)
+    err1 = ldet ? 0x01 : 0x02;				// error 1 (0x01 = shortcut, 0x02 = floating)
 
     c = 0; do {
       if (do_fail & (1U << c)) {			// this output has failure:
@@ -181,13 +205,18 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
       }
     } while (++c < TM_EFDC_DOUT_COUNT);
 
-    dev->gpio->DO_Status = err;				// show to application
+    do_status = err;					// final status
 
     if (!ldet) {					// load detection was active:
       dev->do_float = err & 0xAAAAAAAAAAAAAAAALLU;	// save floating outputs
     }
   } else {						// no errors:
-    dev->gpio->DO_Status = dev->do_float;		// remember floating outputs
+    do_status = dev->do_float;				// remember floating outputs
+  }
+
+  if (dev->gpio->DO_Status != do_status) {		// DO status changed:
+    dev->gpio->DO_Status = do_status;			// show status to applications
+    evn |= 2;						// remember that status changed
   }
 
   // is it time to do load floating detection:
@@ -196,6 +225,17 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
     at91_set_gpio_value(EFDC_PIN_LOAD_DET, 0);
   } else {
     at91_set_gpio_value(EFDC_PIN_LOAD_DET, 1);
+  }
+
+  // send an event if something important changes:
+  if (evn) {						// send event!
+    if (evn & 1) {
+      atomic_inc(&efdcgpio_dev.din_evn_num);		// increment event counter
+    }
+    if (evn & 2) {
+      atomic_inc(&efdcgpio_dev.dout_status_evn_num);	// increment event counter
+    }
+    wake_up_interruptible(&tm_efdc_gpio_event_queue);
   }
 }
 
@@ -283,7 +323,7 @@ static int tm_efdc_gpio_kthread(void *data)
 static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
 {
 	struct efdcgpio_dev *dev = &efdcgpio_dev;
-	u32 portb, portc;
+	u32 portb, portc, pwr_last;
 
 	// get switches and power status:
 	portb = at91_sys_read(AT91_PIOB + PIO_PDSR);	// read port B inputs
@@ -300,9 +340,15 @@ static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
 	}
 
 	// filter power bits:
-	dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, ~(portc >> 13), dev->pwr_last,
+	pwr_last = dev->pwr_last;
+	dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, (portc >> 13), dev->pwr_last,
 					       dev->pwr_delay, pwr_on_delay, pwr_off_delay);
 	dev->gpio->Power = dev->pwr_last;
+
+	if (dev->pwr_last != pwr_last) {
+		atomic_inc(&efdcgpio_dev.power_evn_num);	// increment event counter
+		wake_up_interruptible(&tm_efdc_gpio_event_queue);
+	}
 
 	// filter switch inputs:
 	portb = ((~portb) >> 24) & 0xff;
@@ -336,7 +382,30 @@ static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
  */
 static int tm_efdc_gpio_open(struct inode *inode, struct file *file)
 {
-	return nonseekable_open(inode, file);
+	int ret;
+	efdcgpio_file_private_t *priv = kmalloc(sizeof(*priv), GFP_KERNEL);
+
+	if (priv) {
+		ret = nonseekable_open(inode, file);
+
+		if (ret == 0) {
+			struct efdcgpio_dev *dev = &efdcgpio_dev;
+
+			priv->din_evn_num = atomic_read(&dev->din_evn_num);
+			priv->dout_status_evn_num = atomic_read(&dev->dout_status_evn_num);
+			priv->dout_evn_num = atomic_read(&dev->dout_evn_num);
+			priv->aout_evn_num = atomic_read(&dev->aout_evn_num);
+			priv->power_evn_num = atomic_read(&dev->power_evn_num);
+
+			file->private_data = priv;
+		} else {
+			kfree(priv);
+		}
+	} else {
+		ret = -ENOMEM;
+	}
+
+	return ret;
 }
 
 /*
@@ -344,6 +413,10 @@ static int tm_efdc_gpio_open(struct inode *inode, struct file *file)
  */
 static int tm_efdc_gpio_close(struct inode *inode, struct file *file)
 {
+	if (file->private_data) {
+		kfree(file->private_data);
+		file->private_data = NULL;
+	}
 	return 0;
 }
 
@@ -448,16 +521,30 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DOUT_COUNT || set.value < 0 || set.value > 1)
 			return -EINVAL;
+		u32[0] = u32[1] = gpio->DO;
+
 		if (set.value)
-			gpio->DO |= (1U << set.num);
+			u32[1] |= (1U << set.num);
 		else
-			gpio->DO &= ~(1U << set.num);
+			u32[1] &= ~(1U << set.num);
+
+		if (u32[1] != u32[0]) {
+			gpio->DO = u32[1];
+			atomic_inc(&efdcgpio_dev.dout_evn_num);			// increment event counter
+			wake_up_interruptible(&tm_efdc_gpio_event_queue);
+		}
 		return 0;
 
 	case EFDCIOC_SET_DO_2:
 		if (copy_from_user(&set2, argp, sizeof(set2)))
 			return -EFAULT;
-		gpio->DO = (gpio->DO & ~set2.mask) | (set2.states & set2.mask);
+		u32[0] = gpio->DO;
+		u32[1] = (u32[0] & ~set2.mask) | (set2.states & set2.mask);
+		if (u32[1] != u32[0]) {
+			gpio->DO = u32[1];
+			atomic_inc(&efdcgpio_dev.dout_evn_num);			// increment event counter
+			wake_up_interruptible(&tm_efdc_gpio_event_queue);
+		}
 		return 0;
 
 	case EFDCIOC_GET_DO_RAW:
@@ -525,7 +612,11 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_AOUT_COUNT || set.value < 0 || set.value > 65535)
 			return -EINVAL;
-		gpio->AO[set.num] = set.value;
+		if (gpio->AO[set.num] != set.value) {
+			gpio->AO[set.num] = set.value;
+			atomic_inc(&efdcgpio_dev.aout_evn_num);			// increment event counter
+			wake_up_interruptible(&tm_efdc_gpio_event_queue);
+		}
 		return 0;
 
 	case EFDCIOC_GET_AI:
@@ -571,7 +662,43 @@ static long tm_efdc_gpio_ioctl(struct file *file,
  */
 static ssize_t tm_efdc_gpio_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 {
-	return 0;
+	struct efdcgpio_dev *dev = &efdcgpio_dev;
+	efdcgpio_file_private_t *priv = file->private_data;
+	int ret = 0;
+	u8 evn;
+
+	if (count >= sizeof(evn)) {
+		int evn_num;
+		evn = 0;
+
+		if (priv->din_evn_num != (evn_num = atomic_read(&dev->din_evn_num))) {
+			priv->din_evn_num = evn_num;
+			evn |= EFDC_EVN_DIN;
+		}
+		if (priv->dout_evn_num != (evn_num = atomic_read(&dev->dout_evn_num))) {
+			priv->dout_evn_num = evn_num;
+			evn |= EFDC_EVN_DOUT;
+		}
+		if (priv->dout_status_evn_num != (evn_num = atomic_read(&dev->dout_status_evn_num))) {
+			priv->dout_status_evn_num = evn_num;
+			evn |= EFDC_EVN_DOUT_S;
+		}
+		if (priv->aout_evn_num != (evn_num = atomic_read(&dev->aout_evn_num))) {
+			priv->aout_evn_num = evn_num;
+			evn |= EFDC_EVN_AOUT;
+		}
+
+		if (priv->power_evn_num != (evn_num = atomic_read(&dev->power_evn_num))) {
+			priv->power_evn_num = evn_num;
+			evn |= EFDC_EVN_POWER;
+		}
+
+		if (evn) {
+			ret = copy_to_user(buf, &evn, sizeof(evn)) ? -EFAULT : sizeof(evn);
+		}
+	}
+
+	return ret;
 }
 
 
@@ -615,8 +742,21 @@ static int tm_efdc_gpio_mmap(struct file *file, struct vm_area_struct *vma)
 
 static unsigned int tm_efdc_gpio_poll(struct file *file, poll_table *wait)
 {
+	struct efdcgpio_dev *dev = &efdcgpio_dev;
+	efdcgpio_file_private_t *priv = file->private_data;
+
+	poll_wait(file, &tm_efdc_gpio_event_queue, wait);
+
+	if (priv->din_evn_num != atomic_read(&dev->din_evn_num)
+	    || priv->dout_status_evn_num != atomic_read(&dev->dout_status_evn_num)
+	    || priv->dout_evn_num != atomic_read(&dev->dout_evn_num)
+	    || priv->aout_evn_num != atomic_read(&dev->aout_evn_num)) {
+		return POLLIN | POLLRDNORM;
+	}
+
 	return 0;
 }
+
 
 /* ......................................................................... */
 
