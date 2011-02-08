@@ -107,7 +107,7 @@ int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *con
 
 static int __devinit tm_efdc_dio_setup_transfer(struct tm_efdc_dio *ts)
 {
-	int ret;
+	int ret = -ENOMEM;
 
 	ts->tx_buf = kmalloc(TM_EFDC_DIO_XFER_SIZE, GFP_KERNEL);
 	if (ts->tx_buf) {
@@ -116,22 +116,21 @@ static int __devinit tm_efdc_dio_setup_transfer(struct tm_efdc_dio *ts)
 			ret = 0;
 		else {
 			kfree(ts->tx_buf);
-			ret = -ENOMEM;
 		}
-	} else {
-		ret = -ENOMEM;
 	}
 
-	ts->tx_buf[0] = 0;	// will be ignored
+	if (ret == 0) {
+		ts->tx_buf[0] = 0;	// will be ignored
 
-	ts->st.tx_buf = ts->tx_buf;
-	ts->st.rx_buf = ts->rx_buf;
-	ts->st.len = TM_EFDC_DIO_XFER_SIZE;
+		ts->st.tx_buf = ts->tx_buf;
+		ts->st.rx_buf = ts->rx_buf;
+		ts->st.len = TM_EFDC_DIO_XFER_SIZE;
 
-	spi_message_init(&ts->sm);
-	ts->sm.complete	= tm_efdc_dio_spi_complete;
-	ts->sm.context	= ts;
-	spi_message_add_tail(&ts->st, &ts->sm);
+		spi_message_init(&ts->sm);
+		ts->sm.complete	= tm_efdc_dio_spi_complete;
+		ts->sm.context	= ts;
+		spi_message_add_tail(&ts->st, &ts->sm);
+	}
 
 	return ret;
 }
@@ -176,15 +175,17 @@ static int tm_efdc_dio_remove(struct spi_device *spi)
 {
 	struct tm_efdc_dio *ts;
 
-	ts = dev_get_drvdata(&spi->dev);
+	ts = spi_get_drvdata(spi);
 	if (ts == NULL)
 		return -ENODEV;
 
 	if (ts == tm_efdc_dio)
 		tm_efdc_dio = NULL;
 
-	dev_set_drvdata(&spi->dev, NULL);
+	spi_set_drvdata(spi, NULL);
 
+	kfree(ts->tx_buf);
+	kfree(ts->rx_buf);
 	kfree(ts);
 
 	return 0;
