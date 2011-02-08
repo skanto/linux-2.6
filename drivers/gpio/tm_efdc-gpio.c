@@ -37,6 +37,10 @@
 
 #include <linux/tm_efdc-gpio.h>
 
+#include <xenomai/native/event.h>
+#include <xenomai/native/task.h>
+#include <xenomai/native/timer.h>
+
 #define	DRIVER_NAME		"efdc-gpio"
 #define	POLL_INTERVAL		1000000UL	// timer callback interval (ns)
 #define	ADC_SLIDE_WIN		16		// length of ADC sliding window
@@ -51,10 +55,11 @@ typedef struct efdcgpio_file_private {
 } efdcgpio_file_private_t;
 
 static struct efdcgpio_dev {
-	struct hrtimer		timer;		// timer for constant polling
-	struct task_struct	*kthread;	// kthread for polling
+	struct task_struct	*aio_kthread;	// analog I/O thread
+	RT_EVENT		aio_event;	// analog I/O event
+	RT_TASK			dio_task;	// digital I/O task
 
-	tm_efdc_gpio_t		*gpio;		// values
+	tm_efdc_gpio_t		gpio;		// values
 
 	atomic_t		din_evn_num;	// DIN event number
 	atomic_t		dout_evn_num;	// DOUT event number
@@ -62,7 +67,7 @@ static struct efdcgpio_dev {
 	atomic_t		aout_evn_num;	// AOUT event number
 	atomic_t		power_evn_num;	// power event number
 
-	unsigned		configured:1;	// set if device has been configured
+	volatile unsigned	configured:1;	// set if device has been configured
 
 	int			load_det_tick;	// load float detection
 
@@ -127,25 +132,26 @@ static const u32 pwm_10_table[11] = {
 /* ......................................................................... */
 int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *context);
 
-static u32 tm_efdc_gpio_in_filter(struct efdcgpio_dev *dev, int count, u32 raw, u32 state,
-				  int *delay, volatile const u16 *ond, volatile const u16 *offd)
+static __inline u32 tm_efdc_gpio_in_filter(struct efdcgpio_dev *dev, int count, u32 raw, u32 state,
+				  int *delay, volatile const u16 *ond, volatile const u16 *offd,
+				  volatile u32 *pulses)
 {
   u32 new_state = state;				// prepare new state
   int c;
 
   for (c = 0; c < count; c++) {
     if (raw & (1U << c)) {				// new sample was 1:
-      if (++delay[c] >= 0) {				  // time to change filtered state
-	if (!(state & (1U << c))) {			    // old filtered state was 0:
-	  dev->gpio->DI_Pulses[c]++;			      // increment pulse count
+      if (++(delay[c]) >= 0) {				  // time to change filtered state
+	if (pulses && !(state & (1U << c))) {		    // old filtered state was 0:
+	  (pulses[c])++;			      	      // increment pulse count
 	}
 	new_state |= (1U << c);				    // update state
 	delay[c] = offd[c];				    // reset delay
       }
     } else {						// new sample was 0:
-      if (--delay[c] <= 0) {				  // time to change filtered state
+      if (--(delay[c]) <= 0) {				  // time to change filtered state
 	new_state &= ~(1U << c);			    // update state
-	delay[c] = -ond[c];				    // reset delay
+	delay[c] = -(int)ond[c];			    // reset delay
       }
     }
   }
@@ -165,21 +171,23 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
   int evn = 0;
 
   // combine...
-  di_raw ^= dev->gpio->DI_Invert;			// apply invert
+  di_raw ^= dev->gpio.DI_Invert;			// apply invert
 
-  dev->gpio->DO_Raw = dev->do_raw;			// show to user-space too
-  dev->gpio->DI_Raw = di_raw;
+  dev->gpio.DO_Raw = dev->do_raw;			// show to user-space too
+  dev->gpio.DI_Raw = di_raw;
 
   // filter inputs:
   di_old = dev->di_last;
+
   di_new = tm_efdc_gpio_in_filter(dev, TM_EFDC_DIN_COUNT, di_raw, di_old,
-				  dev->di_delay, dev->gpio->DI_OnDelay, dev->gpio->DI_OffDelay);
+				  dev->di_delay, dev->gpio.DI_OnDelay, dev->gpio.DI_OffDelay,
+				  dev->gpio.DI_Pulses);
   if (di_new != di_old) {
     dev->di_last = di_new;
     evn |= 1;
   }
 
-  dev->gpio->DI = di_new;
+  dev->gpio.DI = di_new;
 
   // was load state detection active:
   ldet = at91_get_gpio_value(EFDC_PIN_LOAD_DET);
@@ -214,8 +222,8 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
     do_status = dev->do_float;				// remember floating outputs
   }
 
-  if (dev->gpio->DO_Status != do_status) {		// DO status changed:
-    dev->gpio->DO_Status = do_status;			// show status to applications
+  if (dev->gpio.DO_Status != do_status) {		// DO status changed:
+    dev->gpio.DO_Status = do_status;			// show status to applications
     evn |= 2;						// remember that status changed
   }
 
@@ -241,7 +249,7 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
 
 static __inline void poll_dio(struct efdcgpio_dev *dev)
 {
-  int c;
+  int c, res;
   u32 do_raw, do_bits, do_pwm_ena;
 
   // first build word to transfer, take current PWM bit for all channels
@@ -253,23 +261,25 @@ static __inline void poll_dio(struct efdcgpio_dev *dev)
   if (++dev->pwm_bit >= TM_EFDC_DOUT_PWM_NBITS) {	// wrap PWM bit number
     dev->pwm_bit = 0;
     for (c = 0; c < TM_EFDC_DOUT_COUNT; c++) {		// copy new PWM values
-      int p = dev->gpio->DO_PWM_Set[c], mp = dev->gpio->DO_PWM_Min[c];
+      int p = dev->gpio.DO_PWM_Set[c], mp = dev->gpio.DO_PWM_Min[c];
       if (p < mp) {
 	p = mp;
       }
-      dev->gpio->DO_PWM[c] = p;
+      dev->gpio.DO_PWM[c] = p;
       dev->pwm_value[c] = pwm_table[(((unsigned)p * TM_EFDC_DOUT_PWM_NBITS + 50) / 100)];
     }
   }
 
-  do_bits = dev->gpio->DO;				// get output states
-  do_pwm_ena = dev->gpio->DO_PWM_Ena;			// get mask of PWM channels
+  do_bits = dev->gpio.DO;				// get output states
+  do_pwm_ena = dev->gpio.DO_PWM_Ena;			// get mask of PWM channels
   do_raw = (do_raw & do_pwm_ena & do_bits) | (do_bits & ~do_pwm_ena);
 
   dev->do_raw = do_raw;
 
   // transfer data:
-  tm_efdc_dio_transfer(do_raw, tm_efdc_gpio_dio_polled, dev);
+  if ((res = tm_efdc_dio_transfer(do_raw, tm_efdc_gpio_dio_polled, dev)) != 0) {
+    //printk("dio: %d\n", res);
+  }
 }
 
 static __inline void poll_aio(struct efdcgpio_dev *dev)
@@ -279,11 +289,11 @@ static __inline void poll_aio(struct efdcgpio_dev *dev)
 
   // process analog outputs:
   for (c = 0; c < TM_EFDC_AOUT_COUNT; c++) {
-    val[c] = dev->gpio->AO[c];
+    val[c] = dev->gpio.AO[c];
   }
 
   // write analog outputs:
-  gpio_set_values(TM_EFDC_AOUT_BASE, TM_EFDC_AOUT_COUNT, &val[0]);
+  //gpio_set_values(TM_EFDC_AOUT_BASE, TM_EFDC_AOUT_COUNT, &val[0]);
 
   // read analog inputs:
   gpio_get_values(TM_EFDC_AIN_BASE, TM_EFDC_AIN_COUNT, &val[0]);
@@ -294,24 +304,30 @@ static __inline void poll_aio(struct efdcgpio_dev *dev)
     slide -= (slide + ADC_SLIDE_WIN / 2) / ADC_SLIDE_WIN;
     slide += val[c];
     dev->adc_slide[c] = slide;
-    dev->gpio->AI[c] = slide / ADC_SLIDE_WIN;
+    dev->gpio.AI[c] = slide / ADC_SLIDE_WIN;
   }
 }
 
-static int tm_efdc_gpio_kthread(void *data)
+#define	EVN_POLL	1
+
+static int tm_efdc_gpio_aio_kthread(void *cookie)
 {
-  struct efdcgpio_dev *dev = data;
+  struct efdcgpio_dev *dev = cookie;
+  unsigned long evn;
+  int err;
 
   while (!kthread_should_stop()) {
-    // waiting for signal..
-    set_current_state(TASK_UNINTERRUPTIBLE);
-    schedule();
+    evn = 0;
 
-    // poll analog I/O
-    poll_aio(dev);
+    if ((err = rt_event_wait(&dev->aio_event, -1, &evn, EV_ANY, TM_INFINITE)) != 0) {
+      printk(KERN_ERR DRIVER_NAME ": rt_event_wait(): %d\n", err);
+      return 1;
+    }
 
-    // increment counter
-    dev->gpio->PollCount++;
+    if (evn & EVN_POLL) {
+      poll_aio(dev);
+      dev->gpio.PollCount++;
+    }
   }
 
   return 0;
@@ -320,58 +336,60 @@ static int tm_efdc_gpio_kthread(void *data)
 #define	ID_SWITCH_DELAY	200
 
 /* ......................................................................... */
-static enum hrtimer_restart tm_efdc_gpio_timer_cb(struct hrtimer *tmr)
+static void tm_efdc_gpio_dio_task(void *cookie)
 {
-	struct efdcgpio_dev *dev = &efdcgpio_dev;
+	struct efdcgpio_dev *dev = cookie;
 	u32 portb, portc, pwr_last;
 
-	// get switches and power status:
-	portb = at91_sys_read(AT91_PIOB + PIO_PDSR);	// read port B inputs
-	portc = at91_sys_read(AT91_PIOC + PIO_PDSR);	// read port C inputs
+	rt_task_set_periodic(NULL, TM_NOW, rt_timer_ns2ticks(1000000UL));
 
-	hrtimer_add_expires_ns(tmr, POLL_INTERVAL);
+	for (;;) {
+		// get switches and power status:
+		portb = at91_sys_read(AT91_PIOB + PIO_PDSR);	// read port B inputs
+		portc = at91_sys_read(AT91_PIOC + PIO_PDSR);	// read port C inputs
 
-	// poll digital I/O
-	if (dev->gpio->Configured || dev->configured) {
-		if (!dev->configured) {
-			dev->configured = 1;
+		// poll digital I/O
+		if (dev->gpio.Configured || dev->configured) {
+			if (!dev->configured) {
+				dev->configured = 1;
+			}
+			poll_dio(dev);
 		}
-		poll_dio(dev);
-	}
 
-	// filter power bits:
-	pwr_last = dev->pwr_last;
-	dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, (portc >> 13), dev->pwr_last,
-					       dev->pwr_delay, pwr_on_delay, pwr_off_delay);
-	dev->gpio->Power = dev->pwr_last;
+		// filter power bits:
+		pwr_last = dev->pwr_last;
+		dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, (portc >> 13), dev->pwr_last,
+						       dev->pwr_delay, pwr_on_delay, pwr_off_delay,
+						       NULL);
+		dev->gpio.Power = dev->pwr_last;
 
-	if (dev->pwr_last != pwr_last) {
-		atomic_inc(&efdcgpio_dev.power_evn_num);	// increment event counter
-		wake_up_interruptible(&tm_efdc_gpio_event_queue);
-	}
-
-	// filter switch inputs:
-	portb = ((~portb) >> 24) & 0xff;
-
-	if (portb == dev->id_last) {
-		if (--dev->id_delay <= 0) {
-			dev->gpio->ID = portb;
-			dev->id_delay = ID_SWITCH_DELAY;
+		if (dev->pwr_last != pwr_last) {
+			atomic_inc(&efdcgpio_dev.power_evn_num);	// increment event counter
+			wake_up_interruptible(&tm_efdc_gpio_event_queue);
 		}
-	} else {
-		if (++dev->id_delay > ID_SWITCH_DELAY) {
-			dev->id_delay = ID_SWITCH_DELAY;
+
+		// filter switch inputs:
+		portb = ((~portb) >> 24) & 0xff;
+
+		if (portb == dev->id_last) {
+			if (--dev->id_delay <= 0) {
+				dev->gpio.ID = portb;
+				dev->id_delay = ID_SWITCH_DELAY;
+			}
+		} else {
+			if (++dev->id_delay > ID_SWITCH_DELAY) {
+				dev->id_delay = ID_SWITCH_DELAY;
+			}
 		}
+
+		dev->id_last = portb;
+
+		if (dev->configured) {
+			rt_event_signal(&efdcgpio_dev.aio_event, EVN_POLL);
+		}
+
+		rt_task_wait_period(NULL);
 	}
-
-	dev->id_last = portb;
-
-	// wake up thread..
-	if (dev->configured && efdcgpio_dev.kthread) {
-		wake_up_process(efdcgpio_dev.kthread);
-	}
-
-	return HRTIMER_RESTART;
 }
 
 
@@ -427,7 +445,7 @@ static int tm_efdc_gpio_close(struct inode *inode, struct file *file)
 static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 					unsigned int cmd, unsigned long arg)
 {
-	tm_efdc_gpio_t *gpio = efdcgpio_dev.gpio;
+	tm_efdc_gpio_t *gpio = &efdcgpio_dev.gpio;
 	void __user *argp = (void __user *)arg;
 	tm_efdc_gpio_set_t set;
 	tm_efdc_gpio_set_2_t set2;
@@ -713,7 +731,7 @@ static ssize_t tm_efdc_gpio_write(struct file *file, const char *data,
 }
 
 /* ......................................................................... */
-
+#if 0
 static int tm_efdc_gpio_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	unsigned long size = vma->vm_end - vma->vm_start;
@@ -737,6 +755,7 @@ static int tm_efdc_gpio_mmap(struct file *file, struct vm_area_struct *vma)
 
 	return 0;
 }
+#endif
 
 /* ......................................................................... */
 
@@ -769,7 +788,7 @@ static const struct file_operations tm_efdc_gpio_fops = {
 	.write		= tm_efdc_gpio_write,
 	.poll		= tm_efdc_gpio_poll,
 	.unlocked_ioctl	= tm_efdc_gpio_ioctl,
-	.mmap		= tm_efdc_gpio_mmap,
+//	.mmap		= tm_efdc_gpio_mmap,
 };
 
 static struct miscdevice tm_efdc_gpio_miscdev = {
@@ -819,15 +838,13 @@ static const struct {
 
 static void free_gpios(int index, int gpio)
 {
-	int i;
-
 	for (;;) {
 		while (gpio > gpio_table[index].base) {
 			gpio_free(gpio--);
 		}
-		if (--i < 0)
+		if (--index < 0)
 			break;
-		gpio = gpio_table[i].base + gpio_table[i].count - 1;
+		gpio = gpio_table[index].base + gpio_table[index].count - 1;
 	}
 }
 
@@ -872,9 +889,7 @@ static int request_gpios(struct device *dev)
 
 static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 {
-	unsigned long size;
-	void *adr;
-	int res, c;
+	int res;
 
 	if (tm_efdc_gpio_miscdev.parent) {
 		printk(KERN_ERR DRIVER_NAME ": already probed!\n");
@@ -882,31 +897,6 @@ static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 	}
 
 	tm_efdc_gpio_miscdev.parent = &pdev->dev;
-
-	if (!efdcgpio_dev.gpio) {
-		// allocate memory for shared memory:
-		size = PAGE_ALIGN(sizeof(*efdcgpio_dev.gpio));
-		efdcgpio_dev.gpio = kmalloc(size, GFP_KERNEL);
-		if (!efdcgpio_dev.gpio) {
-			printk(KERN_ERR DRIVER_NAME ": memory allocation failed\n");
-			return -ENOMEM;
-		}
-
-		memset((void*)efdcgpio_dev.gpio, 0, sizeof(*efdcgpio_dev.gpio));
-
-		// initialize parameters:
-		for (c = 0; c < TM_EFDC_DIN_COUNT; c++) {
-			efdcgpio_dev.gpio->DI_OnDelay[c] = 20;
-			efdcgpio_dev.gpio->DI_OffDelay[c] = 20;
-		}
-
-		adr = (void*)efdcgpio_dev.gpio;
-		while (size > 0) {
-			SetPageReserved(virt_to_page(adr));
-			adr += PAGE_SIZE;
-			size -= PAGE_SIZE;
-		}
-	}
 
 	// request I/O:
 	if ((res = request_gpios(&pdev->dev)) != 0) {
@@ -925,21 +915,23 @@ static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 	at91_set_gpio_output(EFDC_PIN_LOAD_DET, 1);
 	at91_set_gpio_input(EFDC_PIN_DO_FLAG, 1);
 
-	// prepare hrtimer:
-	hrtimer_init(&efdcgpio_dev.timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
-	efdcgpio_dev.timer.function = tm_efdc_gpio_timer_cb;
+	// create event..
+	if ((res = rt_event_create(&efdcgpio_dev.aio_event, NULL, 0, EV_FIFO)) != 0) {
+		printk(KERN_ERR DRIVER_NAME ": rt_event_create() failed: %d\n", res);
+		return res;
+	}
 
-	// create kthread:
-	efdcgpio_dev.kthread = kthread_create(tm_efdc_gpio_kthread, &efdcgpio_dev, "efdcgpiod");
-	if (IS_ERR(efdcgpio_dev.kthread)) {
-		int ret = PTR_ERR(efdcgpio_dev.kthread);
+	// create kthread for polling analog I/O:
+	efdcgpio_dev.aio_kthread = kthread_create(tm_efdc_gpio_aio_kthread, &efdcgpio_dev, "efdcgpiod");
+	if (IS_ERR(efdcgpio_dev.aio_kthread)) {
+		int ret = PTR_ERR(efdcgpio_dev.aio_kthread);
 		printk(KERN_ERR DRIVER_NAME ": kthread_create() failed: %d\n", ret);
 		return ret;
 	}
-	efdcgpio_dev.kthread->prio = 1;	// @@@ we want priority!
+	efdcgpio_dev.aio_kthread->prio = MAX_RT_PRIO - 5;
 
 	// start ticking
-	hrtimer_start(&efdcgpio_dev.timer, ktime_set(0, POLL_INTERVAL), HRTIMER_MODE_REL);
+	rt_task_spawn(&efdcgpio_dev.dio_task, "efdcgpio-dio", 32768, 90, T_FPU, tm_efdc_gpio_dio_task, &efdcgpio_dev);
 
 	printk(KERN_INFO DRIVER_NAME ": started succesfully\n");
 
