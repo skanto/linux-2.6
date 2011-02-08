@@ -31,11 +31,16 @@ struct ad5666 {
 	struct mutex	lock;
 	struct gpio_chip chip;
 	struct spi_device *spi;
+	struct spi_message sm;
+	struct spi_transfer st;
+	u32		*tx_buf;	/* transmission buffer */
 	u32		pwr_mask:4;	/* channels to power on */
 	u32		ref:1;		/* 1 = use internal reference */
 	u16		value[4];	/* cached output values */
 	struct timespec	cfg_ts;		/* when it's time to reconfigure */
 };
+
+#define	AD5666_TX_BUF_SIZE	4
 
 /**
  * ad5666_transfer - Transmit data/to from chip(s)
@@ -47,8 +52,8 @@ struct ad5666 {
  */
 static int ad5666_transfer(struct ad5666 *ts, u32 word)
 {
-	u32 w = cpu_to_be32(word);
-	return spi_write(ts->spi, (const u8 *)&w, 4);
+	ts->tx_buf[0] = cpu_to_be32(word);
+	return spi_sync(ts->spi, &ts->sm);
 }
 
 static __inline int ad5666_wr_chn(struct ad5666 *ts, unsigned chn, u16 value, unsigned upd)
@@ -141,6 +146,24 @@ static void ad5666_set_multiple(struct gpio_chip *chip, unsigned offset, unsigne
 	mutex_unlock(&ts->lock);
 }
 
+static int __devinit ad5666_setup_transfer(struct ad5666 *ts)
+{
+	int ret = -ENOMEM;
+
+	ts->tx_buf = kmalloc(AD5666_TX_BUF_SIZE, GFP_KERNEL);
+	if (ts->tx_buf) {
+		ts->st.tx_buf = ts->tx_buf;
+		ts->st.len = AD5666_TX_BUF_SIZE;
+
+		spi_message_init(&ts->sm);
+		spi_message_add_tail(&ts->st, &ts->sm);
+
+		ret = 0;
+	}
+
+	return ret;
+}
+
 static int __devinit ad5666_probe(struct spi_device *spi)
 {
 	struct ad5666 *ts;
@@ -161,11 +184,19 @@ static int __devinit ad5666_probe(struct spi_device *spi)
 	if (!ts)
 		return -ENOMEM;
 
+	ret = ad5666_setup_transfer(ts);
+	if (ret < 0) {
+		kfree(ts);
+		return ret;
+	}
+
+	
+
 	mutex_init(&ts->lock);
 
-	dev_set_drvdata(&spi->dev, ts);
-
 	ts->spi = spi;
+	spi_set_drvdata(spi, ts);
+
 	ts->ref = pdata->ref;
 	ts->pwr_mask = pdata->pwr_mask;
 	ktime_get_ts(&ts->cfg_ts);
@@ -204,12 +235,12 @@ static int __devinit ad5666_probe(struct spi_device *spi)
 
 	mutex_unlock(&ts->lock);
 
-
 	return ret;
 
 exit_destroy:
-	dev_set_drvdata(&spi->dev, NULL);
+	spi_set_drvdata(spi, NULL);
 	mutex_destroy(&ts->lock);
+	kfree(ts->tx_buf);
 	kfree(ts);
 	return ret;
 }
@@ -219,15 +250,16 @@ static int ad5666_remove(struct spi_device *spi)
 	struct ad5666 *ts;
 	int ret;
 
-	ts = dev_get_drvdata(&spi->dev);
+	ts = spi_get_drvdata(spi);
 	if (ts == NULL)
 		return -ENODEV;
 
-	dev_set_drvdata(&spi->dev, NULL);
+	spi_set_drvdata(spi, NULL);
 
 	ret = gpiochip_remove(&ts->chip);
 	if (!ret) {
 		mutex_destroy(&ts->lock);
+		kfree(ts->tx_buf);
 		kfree(ts);
 	} else
 		dev_err(&spi->dev, "Failed to remove the GPIO controller: %d\n",
