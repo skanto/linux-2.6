@@ -119,6 +119,9 @@ struct irq_chip {
 	void		(*end)(unsigned int irq);
 	void		(*set_affinity)(unsigned int irq,
 					const struct cpumask *dest);
+#ifdef CONFIG_IPIPE
+	void		(*move)(unsigned int irq);
+#endif /* CONFIG_IPIPE */
 	int		(*retrigger)(unsigned int irq);
 	int		(*set_type)(unsigned int irq, unsigned int flow_type);
 	int		(*set_wake)(unsigned int irq, unsigned int on);
@@ -165,6 +168,12 @@ struct irq_2_iommu;
  * @name:		flow handler name for /proc/interrupts output
  */
 struct irq_desc {
+#ifdef CONFIG_IPIPE
+	void			(*ipipe_ack)(unsigned int irq,
+					     struct irq_desc *desc);
+	void			(*ipipe_end)(unsigned int irq,
+					     struct irq_desc *desc);
+#endif /* CONFIG_IPIPE */
 	unsigned int		irq;
 	struct timer_rand_state *timer_rand_state;
 	unsigned int            *kstat_irqs;
@@ -348,6 +357,10 @@ set_irq_chip_and_handler_name(unsigned int irq, struct irq_chip *chip,
 			      irq_flow_handler_t handle, const char *name);
 
 extern void
+___set_irq_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
+		   const char *name);
+
+extern void
 __set_irq_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
 		  const char *name);
 
@@ -359,6 +372,15 @@ static inline void __set_irq_handler_unlocked(int irq,
 
 	desc = irq_to_desc(irq);
 	desc->handle_irq = handler;
+}
+
+/*
+ * Same, but without holding the descriptor lock.
+ */
+static inline void
+_set_irq_handler(unsigned int irq, irq_flow_handler_t handle)
+{
+	___set_irq_handler(irq, handle, 0, NULL);
 }
 
 /*

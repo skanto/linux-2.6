@@ -35,6 +35,7 @@ struct mxc_gpio_port {
 	int irq;
 	int virtual_irq_start;
 	struct gpio_chip chip;
+	ipipe_spinlock_t lock;
 };
 
 int mxc_gpio_init(struct mxc_gpio_port*, int);
