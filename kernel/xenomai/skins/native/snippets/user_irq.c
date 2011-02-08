@@ -1,0 +1,1 @@
+/tmp/xenomai-2.5.5.2/ksrc/skins/native/snippets/user_irq.c

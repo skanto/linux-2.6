@@ -26,4 +26,8 @@ extern int mxc_register_gpios(void);
 extern int mxc_register_device(struct platform_device *pdev, void *data);
 extern void mxc_set_cpu_type(unsigned int type);
 
+#ifdef CONFIG_IPIPE
+void ipipe_mach_allow_hwtimer_uaccess(unsigned long aips1, unsigned long aips2);
+#endif
+
 #endif

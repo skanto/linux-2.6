@@ -1,0 +1,1 @@
+/tmp/xenomai-2.5.5.2/ksrc/drivers/can/mscan/rtcan_mscan_regs.h
