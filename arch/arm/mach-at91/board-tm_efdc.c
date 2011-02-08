@@ -227,7 +227,7 @@ static struct spi_board_info efdc_spi_devices[] = {
 	{	/* digital I/O */
 		.modalias	= "tm_efdc-dio",
 		.chip_select	= 0,
-		.max_speed_hz	= 1 * 1000 * 1000,
+		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 		.controller_data= (void*)AT91_PIN_PB3,
 	},
