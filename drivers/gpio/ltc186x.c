@@ -33,9 +33,17 @@ struct ltc186x {
 	struct mutex	lock;
 	struct gpio_chip chip;
 	struct spi_device *spi;
+	struct spi_message sm;
+	struct spi_transfer st;
+	u16		*tx_buf;
+	u16		*rx_buf;
 	unsigned	channels;	/* number of channels */
 	u16		value[];	/* cached values */
 };
+
+#define	LTC186X_XFER_SIZE	2
+#define	LTC186X_XFER_SIZE	2
+
 
 /**
  * ltc186x_transfer - Transmit data from chip(s)
@@ -48,18 +56,17 @@ struct ltc186x {
 
 static __inline int ltc186x_send_cmd(struct ltc186x *ts, u16 cmd, unsigned delay_usecs, u16 *dst)
 {
-	struct spi_transfer	t = {
-		.tx_buf		= (u8*)&cmd,		/* command to send */
-		.len		= 2,			/* number of bytes to transfer */
-		.rx_buf		= (u8*)dst,		/* destination address */
-		.delay_usecs	=  delay_usecs,		/* we need a delay */
-	};
-	struct spi_message	m;
+	int ret;
 
-	spi_message_init(&m);
-	spi_message_add_tail(&t, &m);
+	ts->st.delay_usecs = delay_usecs;		/* copy delay to transfer */
+	ts->tx_buf[0] = cmd;
+	ret = spi_sync(ts->spi, &ts->sm);
 
-	return spi_sync(ts->spi, &m);
+	if (ret >= 0 && dst) {
+		*dst = ts->rx_buf[0];
+	}
+
+	return ret;
 }
 
 static __inline int ltc186x_transfer(struct ltc186x *ts)
@@ -119,6 +126,32 @@ static int ltc186x_get_multiple(struct gpio_chip *chip, unsigned offset, unsigne
 	return 0;
 }
 
+static int __devinit ltc186x_setup_transfer(struct ltc186x *ts)
+{
+	int ret = -ENOMEM;
+
+	ts->tx_buf = kmalloc(LTC186X_XFER_SIZE, GFP_KERNEL);
+	if (ts->tx_buf) {
+		ts->rx_buf = kmalloc(LTC186X_XFER_SIZE, GFP_KERNEL);
+		if (ts->rx_buf)
+			ret = 0;
+		else {
+			kfree(ts->tx_buf);
+		}
+	}
+
+	if (ret == 0) {
+		ts->st.tx_buf = ts->tx_buf;
+		ts->st.rx_buf = ts->rx_buf;
+		ts->st.len = LTC186X_XFER_SIZE;
+
+		spi_message_init(&ts->sm);
+		spi_message_add_tail(&ts->st, &ts->sm);
+	}
+
+	return ret;
+}
+
 static int __devinit ltc186x_probe(struct spi_device *spi)
 {
 	struct ltc186x *ts;
@@ -143,11 +176,17 @@ static int __devinit ltc186x_probe(struct spi_device *spi)
 	if (!ts)
 		return -ENOMEM;
 
+	ret = ltc186x_setup_transfer(ts);
+	if (ret < 0) {
+		kfree(ts);
+		return ret;
+	}
+
 	mutex_init(&ts->lock);
 
-	dev_set_drvdata(&spi->dev, ts);
-
 	ts->spi = spi;
+	spi_set_drvdata(spi, ts);
+
 	ts->channels = pdata->channels;
 
 	ts->chip.label = DRIVER_NAME;
@@ -169,8 +208,10 @@ static int __devinit ltc186x_probe(struct spi_device *spi)
 	return ret;
 
 exit_destroy:
-	dev_set_drvdata(&spi->dev, NULL);
+	spi_set_drvdata(spi, NULL);
 	mutex_destroy(&ts->lock);
+	kfree(ts->tx_buf);
+	kfree(ts->rx_buf);
 	kfree(ts);
 	return ret;
 }
