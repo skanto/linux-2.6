@@ -40,10 +40,10 @@ struct tm_efdc_dio {
 	struct spi_message sm;
 	struct spi_transfer st;
 	volatile u8	transfer_busy:1;/* set if transmission is busy */
-	volatile u32	in_levels;
-	volatile u32	out_status;
-	volatile u32	dummy;
-	volatile u32	out_levels;
+
+	u32		*rx_buf;
+	u32		*tx_buf;
+
 	void		(*callback)(void *context, u32 inputs, u32 out_status);
 	void		*context;
 } *tm_efdc_dio;
@@ -53,8 +53,8 @@ static void tm_efdc_dio_spi_complete(void *context)
 {
 	struct tm_efdc_dio *ts = context;
 
-	u32 inp = be32_to_cpu(ts->in_levels);
-	u32 out_stat = be32_to_cpu(ts->out_status);
+	u32 inp = be32_to_cpu(ts->rx_buf[0]);
+	u32 out_stat = be32_to_cpu(ts->rx_buf[1]);
 
 	out_stat = (out_stat >> 1) | (inp << 31U);
 	inp = (inp >> 1) | (ts->sm.first_bit << 31U);
@@ -98,19 +98,42 @@ int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *con
 	ts->callback = complete;
 	ts->context = context;
 
-	ts->out_levels	= cpu_to_be32(dout);
+	ts->tx_buf[1] = cpu_to_be32(dout);
 
-	memset(&ts->st, 0, sizeof(ts->st));
-	ts->st.tx_buf	= (u32*)&ts->out_levels - 1;		/* first 32-bits are ignored */
-	ts->st.rx_buf	= (u32*)&ts->in_levels;			/* first ts->num_chips are inputs and next are status */
-	ts->st.len	= 8;					/* number of bytes to transfer */
+	return spi_async(ts->spi, &ts->sm);
+}
+
+#define	TM_EFDC_DIO_XFER_SIZE	8
+
+static int __devinit tm_efdc_dio_setup_transfer(struct tm_efdc_dio *ts)
+{
+	int ret;
+
+	ts->tx_buf = kmalloc(TM_EFDC_DIO_XFER_SIZE, GFP_KERNEL);
+	if (ts->tx_buf) {
+		ts->rx_buf = kmalloc(TM_EFDC_DIO_XFER_SIZE, GFP_KERNEL);
+		if (ts->rx_buf)
+			ret = 0;
+		else {
+			kfree(ts->tx_buf);
+			ret = -ENOMEM;
+		}
+	} else {
+		ret = -ENOMEM;
+	}
+
+	ts->tx_buf[0] = 0;	// will be ignored
+
+	ts->st.tx_buf = ts->tx_buf;
+	ts->st.rx_buf = ts->rx_buf;
+	ts->st.len = TM_EFDC_DIO_XFER_SIZE;
 
 	spi_message_init(&ts->sm);
 	ts->sm.complete	= tm_efdc_dio_spi_complete;
 	ts->sm.context	= ts;
 	spi_message_add_tail(&ts->st, &ts->sm);
 
-	return spi_async(ts->spi, &ts->sm);
+	return ret;
 }
 
 static int __devinit tm_efdc_dio_probe(struct spi_device *spi)
@@ -133,11 +156,15 @@ static int __devinit tm_efdc_dio_probe(struct spi_device *spi)
 	if (!ts)
 		return -ENOMEM;
 
+	if ((ret = tm_efdc_dio_setup_transfer(ts)) < 0) {
+		kfree(ts);
+		return ret;
+	}
+
 	spin_lock_init(&ts->lock);
 
-	dev_set_drvdata(&spi->dev, ts);
-
 	ts->spi = spi;
+	spi_set_drvdata(spi, ts);
 
 	tm_efdc_dio = ts;
 	dev_info(&spi->dev, "initialized!\n");
