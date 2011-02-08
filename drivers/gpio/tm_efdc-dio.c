@@ -101,8 +101,8 @@ int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *con
 	ts->out_levels	= cpu_to_be32(dout);
 
 	memset(&ts->st, 0, sizeof(ts->st));
-	ts->st.tx_buf	= &ts->out_levels - 1;			/* first 32-bits are ignored */
-	ts->st.rx_buf	= &ts->in_levels;			/* first ts->num_chips are inputs and next are status */
+	ts->st.tx_buf	= (u32*)&ts->out_levels - 1;		/* first 32-bits are ignored */
+	ts->st.rx_buf	= (u32*)&ts->in_levels;			/* first ts->num_chips are inputs and next are status */
 	ts->st.len	= 8;					/* number of bytes to transfer */
 
 	spi_message_init(&ts->sm);
