@@ -25,13 +25,6 @@
 #include <linux/gpio.h>
 #include <mach/hardware.h>
 #include <asm-generic/bug.h>
-#ifdef CONFIG_IPIPE
-#include <asm/ipipe.h>
-#ifdef CONFIG_MACH_MX31ADS
-#include <mach/iomux-mx3.h>
-#include <mach/board-mx31ads.h>
-#endif /* CONFIG_MACH_MX31ADS */
-#endif /* CONFIG_IPIPE */
 
 static struct mxc_gpio_port *mxc_gpio_ports;
 static int gpio_table_size;
@@ -75,7 +68,6 @@ static int gpio_set_irq_type(u32 irq, u32 type)
 {
 	u32 gpio = irq_to_gpio(irq);
 	struct mxc_gpio_port *port = &mxc_gpio_ports[gpio / 32];
-	unsigned long flags;
 	u32 bit, val;
 	int edge;
 	void __iomem *reg = port->base;
@@ -97,13 +89,11 @@ static int gpio_set_irq_type(u32 irq, u32 type)
 		return -EINVAL;
 	}
 
-	spin_lock_irqsave(&port->lock, flags);
 	reg += GPIO_ICR1 + ((gpio & 0x10) >> 2); /* lower or upper register */
 	bit = gpio & 0xf;
 	val = __raw_readl(reg) & ~(0x3 << (bit << 1));
 	__raw_writel(val | (edge << (bit << 1)), reg);
 	_clear_gpio_irqstatus(port, gpio & 0x1f);
-	spin_unlock_irqrestore(&port->lock, flags);
 
 	return 0;
 }
@@ -120,7 +110,8 @@ static void mxc_gpio_irq_handler(struct mxc_gpio_port *port, u32 irq_stat)
 			continue;
 
 		BUG_ON(!(irq_desc[gpio_irq_no].handle_irq));
-		ipipe_handle_irq_cond(gpio_irq_no);
+		irq_desc[gpio_irq_no].handle_irq(gpio_irq_no,
+				&irq_desc[gpio_irq_no]);
 	}
 }
 
@@ -136,7 +127,7 @@ static void mx3_gpio_irq_handler(u32 irq, struct irq_desc *desc)
 
 	mxc_gpio_irq_handler(port, irq_stat);
 }
-#endif /* CONFIG_ARCH_MX3 */
+#endif
 
 #ifdef CONFIG_ARCH_MX2
 /* MX2 has one interrupt *for all* gpio ports */
@@ -157,7 +148,7 @@ static void mx2_gpio_irq_handler(u32 irq, struct irq_desc *desc)
 			mxc_gpio_irq_handler(&port[i], irq_stat);
 	}
 }
-#endif /* CONFIG_ARCH_MX2 */
+#endif
 
 static struct irq_chip gpio_irq_chip = {
 	.ack = gpio_ack_irq,
@@ -171,17 +162,14 @@ static void _set_gpio_direction(struct gpio_chip *chip, unsigned offset,
 {
 	struct mxc_gpio_port *port =
 		container_of(chip, struct mxc_gpio_port, chip);
-	unsigned long flags;
 	u32 l;
 
-	spin_lock_irqsave(&port->lock, flags);
 	l = __raw_readl(port->base + GPIO_GDIR);
 	if (dir)
 		l |= 1 << offset;
 	else
 		l &= ~(1 << offset);
 	__raw_writel(l, port->base + GPIO_GDIR);
-	spin_unlock_irqrestore(&port->lock, flags);
 }
 
 static void mxc_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
@@ -189,13 +177,10 @@ static void mxc_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 	struct mxc_gpio_port *port =
 		container_of(chip, struct mxc_gpio_port, chip);
 	void __iomem *reg = port->base + GPIO_DR;
-	unsigned long flags;
 	u32 l;
 
-	spin_lock_irqsave(&port->lock, flags);
 	l = (__raw_readl(reg) & (~(1 << offset))) | (value << offset);
 	__raw_writel(l, reg);
-	spin_unlock_irqrestore(&port->lock, flags);
 }
 
 static int mxc_gpio_get(struct gpio_chip *chip, unsigned offset)
@@ -237,11 +222,7 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 		for (j = port[i].virtual_irq_start;
 			j < port[i].virtual_irq_start + 32; j++) {
 			set_irq_chip(j, &gpio_irq_chip);
-#ifndef CONFIG_IPIPE
 			set_irq_handler(j, handle_edge_irq);
-#else /* CONFIG_IPIPE */
-			set_irq_handler(j, handle_level_irq);
-#endif /* CONFIG_IPIPE */
 			set_irq_flags(j, IRQF_VALID);
 		}
 
@@ -252,7 +233,6 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 		port[i].chip.set = mxc_gpio_set;
 		port[i].chip.base = i * 32;
 		port[i].chip.ngpio = 32;
-		spin_lock_init(&port[i].lock);
 
 		/* its a serious configuration bug when it fails */
 		BUG_ON( gpiochip_add(&port[i].chip) < 0 );

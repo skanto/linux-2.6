@@ -22,7 +22,6 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/smc91x.h>
-#include <linux/ipipe.h>
 
 #include <linux/spi/spi.h>
 #include <linux/spi/ads7846.h>
@@ -162,7 +161,7 @@ static void lubbock_irq_handler(unsigned int irq, struct irq_desc *desc)
 		GEDR(0) = GPIO_bit(0);	/* clear our parent irq */
 		if (likely(pending)) {
 			irq = LUBBOCK_IRQ(0) + __ffs(pending);
-			ipipe_handle_irq_cond(irq);
+			generic_handle_irq(irq);
 		}
 		pending = LUB_IRQ_SET_CLR & lubbock_irq_enabled;
 	} while (pending);

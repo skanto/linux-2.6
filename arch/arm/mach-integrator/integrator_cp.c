@@ -2,7 +2,6 @@
  *  linux/arch/arm/mach-integrator/integrator_cp.c
  *
  *  Copyright (C) 2003 Deep Blue Solutions Ltd
- *  Copyright (C) 2005 Stelian Pop.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +20,6 @@
 #include <linux/amba/kmi.h>
 #include <linux/amba/clcd.h>
 #include <linux/io.h>
-#include <linux/ipipe.h>
 
 #include <asm/clkdev.h>
 #include <mach/clkdev.h>
@@ -163,9 +161,6 @@ static struct irq_chip cic_chip = {
 	.name	= "CIC",
 	.ack	= cic_mask_irq,
 	.mask	= cic_mask_irq,
-#ifdef CONFIG_IPIPE
-	.mask_ack = cic_mask_irq,
-#endif /* CONFIG_IPIPE */
 	.unmask	= cic_unmask_irq,
 };
 
@@ -185,9 +180,6 @@ static struct irq_chip pic_chip = {
 	.name	= "PIC",
 	.ack	= pic_mask_irq,
 	.mask	= pic_mask_irq,
-#ifdef CONFIG_IPIPE
-	.mask_ack = pic_mask_irq,
-#endif /* CONFIG_IPIPE */
 	.unmask = pic_unmask_irq,
 };
 
@@ -207,9 +199,6 @@ static struct irq_chip sic_chip = {
 	.name	= "SIC",
 	.ack	= sic_mask_irq,
 	.mask	= sic_mask_irq,
-#ifdef CONFIG_IPIPE
-	.mask_ack = sic_mask_irq,
-#endif /* CONFIG_IPIPE */
 	.unmask	= sic_unmask_irq,
 };
 
@@ -229,7 +218,7 @@ sic_handle_irq(unsigned int irq, struct irq_desc *desc)
 
 		irq += IRQ_SIC_START;
 
-		ipipe_handle_irq_cond(irq);
+		generic_handle_irq(irq);
 	} while (status);
 }
 
@@ -580,14 +569,9 @@ static void __init intcp_init(void)
 
 #define TIMER_CTRL_IE	(1 << 5)			/* Interrupt Enable */
 
-#ifdef CONFIG_IPIPE
-unsigned int __ipipe_mach_ticks_per_jiffy = 1000000 * TICKS_PER_uSEC / HZ;
-EXPORT_SYMBOL(__ipipe_mach_ticks_per_jiffy);
-#endif
-
 static void __init intcp_timer_init(void)
 {
-	integrator_time_init(1000000 * TICKS_PER_uSEC / HZ, TIMER_CTRL_IE);
+	integrator_time_init(1000000 / HZ, TIMER_CTRL_IE);
 }
 
 static struct sys_timer cp_timer = {

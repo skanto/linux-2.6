@@ -3,8 +3,6 @@
  * Copyright (c) 2003,2004 Simtec Electronics
  *	Ben Dooks <ben@simtec.co.uk>
  *
- * Copyright (C) 2006, 2007 Sebastian Smolorz <ssmolorz@emlix.com>, emlix GmbH
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -27,7 +25,6 @@
 #include <linux/ioport.h>
 #include <linux/sysdev.h>
 #include <linux/io.h>
-#include <linux/ipipe.h>
 
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -60,10 +57,10 @@ static void s3c_irq_demux_wdtac97(unsigned int irq,
 
 	if (subsrc != 0) {
 		if (subsrc & 1) {
-			ipipe_handle_irq_cond(IRQ_S3C2440_WDT);
+			generic_handle_irq(IRQ_S3C2440_WDT);
 		}
 		if (subsrc & 2) {
-			ipipe_handle_irq_cond(IRQ_S3C2440_AC97);
+			generic_handle_irq(IRQ_S3C2440_AC97);
 		}
 	}
 }

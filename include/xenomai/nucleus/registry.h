@@ -1,1 +1,0 @@
-/tmp/xenomai-2.5.5.2/include/nucleus/registry.h

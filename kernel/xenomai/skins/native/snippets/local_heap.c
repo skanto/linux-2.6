@@ -1,1 +1,0 @@
-/tmp/xenomai-2.5.5.2/ksrc/skins/native/snippets/local_heap.c

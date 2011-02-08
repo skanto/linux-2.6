@@ -42,14 +42,11 @@ static int vfp_notifier(struct notifier_block *self, unsigned long cmd, void *v)
 {
 	struct thread_info *thread = v;
 	union vfp_state *vfp;
-	unsigned long flags;
 	__u32 cpu = thread->cpu;
 
 	if (likely(cmd == THREAD_NOTIFY_SWITCH)) {
-		u32 fpexc;
+		u32 fpexc = fmrx(FPEXC);
 
-		local_irq_save_hw_cond(flags);
-		fpexc = fmrx(FPEXC);
 #ifdef CONFIG_SMP
 		/*
 		 * On SMP, if VFP is enabled, save the old state in
@@ -74,7 +71,6 @@ static int vfp_notifier(struct notifier_block *self, unsigned long cmd, void *v)
 		 * old state.
 		 */
 		fmxr(FPEXC, fpexc & ~FPEXC_EN);
-		local_irq_restore_hw_cond(flags);
 		return NOTIFY_DONE;
 	}
 
@@ -91,15 +87,12 @@ static int vfp_notifier(struct notifier_block *self, unsigned long cmd, void *v)
 		/*
 		 * Disable VFP to ensure we initialise it first.
 		 */
-		local_irq_save_hw_cond(flags);
 		fmxr(FPEXC, fmrx(FPEXC) & ~FPEXC_EN);
-	} else
-		local_irq_save_hw_cond(flags);
+	}
 
 	/* flush and release case: Per-thread VFP cleanup. */
 	if (last_VFP_context[cpu] == vfp)
 		last_VFP_context[cpu] = NULL;
-	local_irq_restore_hw_cond(flags);
 
 	return NOTIFY_DONE;
 }

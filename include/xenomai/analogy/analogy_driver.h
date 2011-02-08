@@ -1,1 +1,0 @@
-/tmp/xenomai-2.5.5.2/include/analogy/analogy_driver.h

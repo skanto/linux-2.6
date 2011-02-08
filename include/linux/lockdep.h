@@ -364,7 +364,7 @@ do {								\
 
 #endif /* CONFIG_LOCK_STAT */
 
-#if defined (CONFIG_LOCKDEP) || defined(CONFIG_IPIPE)
+#ifdef CONFIG_LOCKDEP
 
 /*
  * On lockdep we dont want the hand-coded irq-enable of

@@ -118,5 +118,4 @@ extern int imx_set_irq_fiq(unsigned int irq, unsigned int type);
 
 #define NR_IRQS (IRQ_GPIOD(32) + 1)
 #define IRQ_GPIO(x)
-
 #endif

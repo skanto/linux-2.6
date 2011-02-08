@@ -1,1 +1,0 @@
-/tmp/xenomai-2.5.5.2/ksrc/drivers/can/sja1000/rtcan_sja1000.h

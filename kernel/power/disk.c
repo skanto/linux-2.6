@@ -238,7 +238,6 @@ static int create_image(int platform_mode)
 		goto Enable_cpus;
 
 	local_irq_disable();
-	local_irq_disable_hw_cond();
 
 	error = sysdev_suspend(PMSG_FREEZE);
 	if (error) {
@@ -268,7 +267,6 @@ static int create_image(int platform_mode)
 	 */
 
  Enable_irqs:
-	local_irq_enable_hw_cond();
 	local_irq_enable();
 
  Enable_cpus:
@@ -357,7 +355,6 @@ static int resume_target_kernel(bool platform_mode)
 		goto Enable_cpus;
 
 	local_irq_disable();
-	local_irq_disable_hw_cond();
 
 	error = sysdev_suspend(PMSG_QUIESCE);
 	if (error)
@@ -389,7 +386,6 @@ static int resume_target_kernel(bool platform_mode)
 	sysdev_resume();
 
  Enable_irqs:
-	local_irq_enable_hw_cond();
 	local_irq_enable();
 
  Enable_cpus:
