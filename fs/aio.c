@@ -618,13 +618,16 @@ static void use_mm(struct mm_struct *mm)
 {
 	struct mm_struct *active_mm;
 	struct task_struct *tsk = current;
+	unsigned long flags;
 
 	task_lock(tsk);
 	active_mm = tsk->active_mm;
 	atomic_inc(&mm->mm_count);
 	tsk->mm = mm;
+	ipipe_mm_switch_protect(flags);
 	tsk->active_mm = mm;
-	switch_mm(active_mm, mm, tsk);
+	__switch_mm(active_mm, mm, tsk);
+	ipipe_mm_switch_unprotect(flags);
 	task_unlock(tsk);
 
 	mmdrop(active_mm);

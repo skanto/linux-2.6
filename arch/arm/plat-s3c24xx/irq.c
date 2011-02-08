@@ -3,6 +3,8 @@
  * Copyright (c) 2003,2004 Simtec Electronics 
  *	Ben Dooks <ben@simtec.co.uk>
  *
+ * Copyright (C) 2006, 2007 Sebastian Smolorz <ssmolorz@emlix.com>, emlix GmbH
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -23,6 +25,7 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/sysdev.h>
+#include <linux/ipipe.h>
 
 #include <asm/irq.h>
 #include <asm/mach/irq.h>
@@ -32,6 +35,14 @@
 #include <plat/cpu.h>
 #include <plat/pm.h>
 #include <plat/irq.h>
+
+#ifdef CONFIG_IPIPE
+#ifdef CONFIG_CPU_S3C2440
+extern void __ipipe_s3c_irq_demux_wdtac97(unsigned int irq,
+					  struct pt_regs *regs);
+extern void __ipipe_s3c_irq_demux_cam(unsigned int irq, struct pt_regs *regs);
+#endif /* CONFIG_CPU_S3C2440 */
+#endif /* CONFIG_IPIPE */
 
 static void
 s3c_irq_mask(unsigned int irqno)
@@ -87,6 +98,9 @@ struct irq_chip s3c_irq_level_chip = {
 	.name		= "s3c-level",
 	.ack		= s3c_irq_maskack,
 	.mask		= s3c_irq_mask,
+#ifdef CONFIG_IPIPE
+	.mask_ack       = s3c_irq_maskack,
+#endif /* CONFIG_IPIPE */
 	.unmask		= s3c_irq_unmask,
 	.set_wake	= s3c_irq_wake
 };
@@ -283,6 +297,9 @@ static struct irq_chip s3c_irq_uart0 = {
 	.mask		= s3c_irq_uart0_mask,
 	.unmask		= s3c_irq_uart0_unmask,
 	.ack		= s3c_irq_uart0_ack,
+#ifdef CONFIG_IPIPE
+	.mask_ack       = s3c_irq_uart0_ack,
+#endif /* CONFIG_IPIPE */
 };
 
 /* UART1 */
@@ -310,6 +327,9 @@ static struct irq_chip s3c_irq_uart1 = {
 	.mask		= s3c_irq_uart1_mask,
 	.unmask		= s3c_irq_uart1_unmask,
 	.ack		= s3c_irq_uart1_ack,
+#ifdef CONFIG_IPIPE
+	.mask_ack	= s3c_irq_uart1_ack,
+#endif /* CONFIG_IPIPE */
 };
 
 /* UART2 */
@@ -337,6 +357,9 @@ static struct irq_chip s3c_irq_uart2 = {
 	.mask		= s3c_irq_uart2_mask,
 	.unmask		= s3c_irq_uart2_unmask,
 	.ack		= s3c_irq_uart2_ack,
+#ifdef CONFIG_IPIPE
+	.mask_ack	= s3c_irq_uart2_ack,
+#endif /* CONFIG_IPIPE */
 };
 
 /* ADC and Touchscreen */
@@ -385,10 +408,10 @@ static void s3c_irq_demux_adc(unsigned int irq,
 
 	if (subsrc != 0) {
 		if (subsrc & 1) {
-			generic_handle_irq(IRQ_TC);
+			ipipe_handle_irq_cond(IRQ_TC);
 		}
 		if (subsrc & 2) {
-			generic_handle_irq(IRQ_ADC);
+			ipipe_handle_irq_cond(IRQ_ADC);
 		}
 	}
 }
@@ -413,13 +436,13 @@ static void s3c_irq_demux_uart(unsigned int start)
 
 	if (subsrc != 0) {
 		if (subsrc & 1)
-			generic_handle_irq(start);
+			ipipe_handle_irq_cond(start);
 
 		if (subsrc & 2)
-			generic_handle_irq(start+1);
+			ipipe_handle_irq_cond(start+1);
 
 		if (subsrc & 4)
-			generic_handle_irq(start+2);
+			ipipe_handle_irq_cond(start+2);
 	}
 }
 
@@ -466,7 +489,7 @@ s3c_irq_demux_extint8(unsigned int irq,
 		eintpnd &= ~(1<<irq);
 
 		irq += (IRQ_EINT4 - 4);
-		generic_handle_irq(irq);
+		ipipe_handle_irq_cond(irq);
 	}
 
 }
@@ -489,7 +512,7 @@ s3c_irq_demux_extint4t7(unsigned int irq,
 
 		irq += (IRQ_EINT4 - 4);
 
-		generic_handle_irq(irq);
+		ipipe_handle_irq_cond(irq);
 	}
 }
 

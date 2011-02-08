@@ -17,6 +17,7 @@
 #include <linux/io.h>
 #include <linux/sysdev.h>
 #include <linux/bootmem.h>
+#include <linux/ipipe.h>
 
 #include <mach/gpio.h>
 
@@ -39,7 +40,7 @@ struct pxa_gpio_chip {
 #endif
 };
 
-static DEFINE_SPINLOCK(gpio_lock);
+static IPIPE_DEFINE_SPINLOCK(gpio_lock);
 static struct pxa_gpio_chip *pxa_gpio_chips;
 
 #define for_each_gpio_chip(i, c)			\
@@ -225,7 +226,7 @@ static void pxa_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 			while (n < BITS_PER_LONG) {
 				loop = 1;
 
-				generic_handle_irq(gpio_to_irq(gpio_base + n));
+				ipipe_handle_irq_cond(gpio_to_irq(gpio_base + n));
 				n = find_next_bit(&gedr, BITS_PER_LONG, n + 1);
 			}
 		}
@@ -290,7 +291,7 @@ void __init pxa_init_gpio(int mux_irq, int start, int end, set_wake_t fn)
 
 	for (irq  = gpio_to_irq(start); irq <= gpio_to_irq(end); irq++) {
 		set_irq_chip(irq, &pxa_muxed_gpio_chip);
-		set_irq_handler(irq, handle_edge_irq);
+		set_irq_handler(irq, handle_level_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
 

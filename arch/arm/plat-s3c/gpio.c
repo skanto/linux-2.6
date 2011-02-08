@@ -39,7 +39,7 @@ static __init void s3c_gpiolib_track(struct s3c_gpio_chip *chip)
  * chip is as following:
  *
  * base + 0x00: Control register, 2 bits per gpio
- *	        gpio n: 2 bits starting at (2*n)
+ *		gpio n: 2 bits starting at (2*n)
  *		00 = input, 01 = output, others mean special-function
  * base + 0x04: Data register, 1 bit per gpio
  *		bit n: data bit n
@@ -52,14 +52,14 @@ static int s3c_gpiolib_input(struct gpio_chip *chip, unsigned offset)
 	unsigned long flags;
 	unsigned long con;
 
-	local_irq_save(flags);
+	local_irq_save_hw(flags);
 
 	con = __raw_readl(base + 0x00);
 	con &= ~(3 << (offset * 2));
 
 	__raw_writel(con, base + 0x00);
 
-	local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 	return 0;
 }
 
@@ -72,7 +72,7 @@ static int s3c_gpiolib_output(struct gpio_chip *chip,
 	unsigned long dat;
 	unsigned long con;
 
-	local_irq_save(flags);
+	local_irq_save_hw(flags);
 
 	dat = __raw_readl(base + 0x04);
 	dat &= ~(1 << offset);
@@ -87,7 +87,7 @@ static int s3c_gpiolib_output(struct gpio_chip *chip,
 	__raw_writel(con, base + 0x00);
 	__raw_writel(dat, base + 0x04);
 
-	local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 	return 0;
 }
 
@@ -99,7 +99,7 @@ static void s3c_gpiolib_set(struct gpio_chip *chip,
 	unsigned long flags;
 	unsigned long dat;
 
-	local_irq_save(flags);
+	local_irq_save_hw(flags);
 
 	dat = __raw_readl(base + 0x04);
 	dat &= ~(1 << offset);
@@ -107,7 +107,7 @@ static void s3c_gpiolib_set(struct gpio_chip *chip,
 		dat |= 1 << offset;
 	__raw_writel(dat, base + 0x04);
 
-	local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 }
 
 static int s3c_gpiolib_get(struct gpio_chip *chip, unsigned offset)
