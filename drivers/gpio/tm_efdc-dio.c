@@ -40,10 +40,10 @@ struct tm_efdc_dio {
 	struct spi_message sm;
 	struct spi_transfer st;
 	volatile u8	transfer_busy:1;/* set if transmission is busy */
-	u32		in_levels;
-	u32		out_status;
-	u32		dummy;
-	u32		out_levels;
+	volatile u32	in_levels;
+	volatile u32	out_status;
+	volatile u32	dummy;
+	volatile u32	out_levels;
 	void		(*callback)(void *context, u32 inputs, u32 out_status);
 	void		*context;
 } *tm_efdc_dio;
