@@ -40,9 +40,18 @@
 #include <xenomai/rtdm/rtdm_driver.h>
 
 #define	DRIVER_NAME		"efdc-gpio"
-#define	POLL_INTERVAL		1000000UL	// timer callback interval (ns)
+#define	DIO_POLL_HZ		(2500UL)	// poll interval (Hz)
+#define	DIO_POLL_INT		(1000000000UL/DIO_POLL_HZ)	// timer callback interval (ns)
+#define	LOAD_DET_INTERVAL	(5*DIO_POLL_HZ)	// open-load detection interval (in ticks)
+#define	MS2DIOTCK(_ms)		(((_ms)*DIO_POLL_HZ+999)/1000)
+
+#define	AIO_POLL_INT		(1000000UL)	// analog I/O poll interval (ns)
 #define	ADC_SLIDE_WIN		16		// length of ADC sliding window
-#define	LOAD_DET_INTERVAL	5000		// open-load detection interval (in ms)
+
+#define	ID_SWITCH_DELAY		MS2DIOTCK(200)	// ID switch delay
+
+#define	EFDC_PIN_LOAD_DET	AT91_PIN_PC0
+#define	EFDC_PIN_DO_FLAG	AT91_PIN_PC4
 
 typedef struct efdcgpio_file_private {
 	int			din_evn_num;	// DIN event number
@@ -54,8 +63,9 @@ typedef struct efdcgpio_file_private {
 
 static struct efdcgpio_dev {
 	struct task_struct	*aio_kthread;	// analog I/O thread
+	struct hrtimer		aio_timer;	// analog I/O timer
+	volatile int		aio_poll_count;	// analog I/O poll count
 	wait_queue_head_t	aio_wqh;	// analog I/O wait queue..
-	rtdm_nrtsig_t		aio_nrt_sig;	// analog I/O signaling routine..
 	rtdm_task_t		dio_task;	// digital I/O task
 
 	tm_efdc_gpio_t		gpio;		// values
@@ -71,6 +81,8 @@ static struct efdcgpio_dev {
 	u32			di_last;	// last state of digital inputs
 	u32			do_raw;		// last transmitted do_raw
 	int			di_delay[TM_EFDC_DIN_COUNT];	// current delay value for inputs
+	int			di_off_delay[TM_EFDC_DIN_COUNT];
+	int			di_on_delay[TM_EFDC_DIN_COUNT];
 
 	u64			do_float;	// mask of floating outputs
 
@@ -87,8 +99,8 @@ static struct efdcgpio_dev {
 } efdcgpio_dev;
 
 static DECLARE_WAIT_QUEUE_HEAD(tm_efdc_gpio_event_queue);
-static const volatile u16 pwr_on_delay[2] = { 500, 500 };
-static const volatile u16 pwr_off_delay[2] = { 500, 500 };
+static const int pwr_on_delay[2] = { MS2DIOTCK(500), MS2DIOTCK(500) };
+static const int pwr_off_delay[2] = { MS2DIOTCK(500), MS2DIOTCK(500) };
 
 static DEFINE_MUTEX(efdc_gpio_mutex);
 
@@ -128,7 +140,7 @@ static const u32 pwm_10_table[11] = {
 int tm_efdc_dio_transfer(u32 dout, void (*complete)(void *, u32, u32), void *context);
 
 static __inline u32 tm_efdc_gpio_in_filter(struct efdcgpio_dev *dev, int count, u32 raw, u32 state,
-				  int *delay, volatile const u16 *ond, volatile const u16 *offd,
+				  int *delay, const int *ond, const int *offd,
 				  volatile u32 *pulses)
 {
   u32 new_state = state;				// prepare new state
@@ -154,9 +166,7 @@ static __inline u32 tm_efdc_gpio_in_filter(struct efdcgpio_dev *dev, int count, 
   return new_state;
 }
 
-#define	EFDC_PIN_LOAD_DET	AT91_PIN_PC0
-#define	EFDC_PIN_DO_FLAG	AT91_PIN_PC4
-
+/* ......................................................................... */
 static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
 {
   struct efdcgpio_dev *dev = context;
@@ -175,7 +185,7 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
   di_old = dev->di_last;
 
   di_new = tm_efdc_gpio_in_filter(dev, TM_EFDC_DIN_COUNT, di_raw, di_old,
-				  dev->di_delay, dev->gpio.DI_OnDelay, dev->gpio.DI_OffDelay,
+				  dev->di_delay, dev->di_on_delay, dev->di_off_delay,
 				  dev->gpio.DI_Pulses);
   if (di_new != di_old) {
     dev->di_last = di_new;
@@ -242,6 +252,7 @@ static void tm_efdc_gpio_dio_polled(void *context, u32 di_raw, u32 do_stat)
   }
 }
 
+/* ......................................................................... */
 static __inline void poll_dio(struct efdcgpio_dev *dev)
 {
   int c, res;
@@ -277,6 +288,7 @@ static __inline void poll_dio(struct efdcgpio_dev *dev)
   }
 }
 
+/* ......................................................................... */
 static __inline void poll_aio(struct efdcgpio_dev *dev)
 {
   int c;
@@ -303,25 +315,31 @@ static __inline void poll_aio(struct efdcgpio_dev *dev)
   }
 }
 
+/* ......................................................................... */
 static int tm_efdc_gpio_aio_kthread(void *cookie)
 {
   struct efdcgpio_dev *dev = cookie;
-  int poll_count = dev->gpio.PollCount;
+  int poll_count = dev->aio_poll_count;
 
   while (!kthread_should_stop()) {
-    wait_event(dev->aio_wqh, poll_count != dev->gpio.PollCount);
-    poll_count = dev->gpio.PollCount;
+    wait_event(dev->aio_wqh, poll_count != dev->aio_poll_count);
+    poll_count = dev->aio_poll_count;
     poll_aio(dev);
   }
 
   return 0;
 }
 
-#define	ID_SWITCH_DELAY	200
-
-static void tm_efdc_gpio_aio_nrt_sig(rtdm_nrtsig_t nrt_sig, void *arg)
+/* ......................................................................... */
+static enum hrtimer_restart tm_efdc_gpio_aio_timer_cb(struct hrtimer *tmr)
 {
-  wake_up(&efdcgpio_dev.aio_wqh);
+	struct efdcgpio_dev *dev = &efdcgpio_dev;
+	if (dev->gpio.Configured) {
+	  dev->aio_poll_count++;
+	  wake_up(&dev->aio_wqh);
+	}
+	hrtimer_add_expires_ns(tmr, AIO_POLL_INT);
+	return HRTIMER_RESTART;
 }
 
 /* ......................................................................... */
@@ -339,7 +357,6 @@ static void tm_efdc_gpio_dio_task(void *cookie)
 		if (dev->gpio.Configured) {
 			dev->gpio.PollCount++;
 			poll_dio(dev);
-			rtdm_nrtsig_pend(&dev->aio_nrt_sig);
 		}
 
 		// filter power bits:
@@ -427,7 +444,8 @@ static int tm_efdc_gpio_close(struct inode *inode, struct file *file)
 static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 					unsigned int cmd, unsigned long arg)
 {
-	tm_efdc_gpio_t *gpio = &efdcgpio_dev.gpio;
+	struct efdcgpio_dev *dev = &efdcgpio_dev;
+	tm_efdc_gpio_t *gpio = &dev->gpio;
 	void __user *argp = (void __user *)arg;
 	tm_efdc_gpio_set_t set;
 	tm_efdc_gpio_set_2_t set2;
@@ -494,10 +512,13 @@ static __inline long _tm_efdc_gpio_ioctl(struct file *file,
 			return -EFAULT;
 		if (set.num < 0 || set.num >= TM_EFDC_DIN_COUNT || set.value < 0 || set.value > 65535)
 			return -EINVAL;
-		if (cmd == EFDCIOC_SET_DI_ONDELAY)
+		if (cmd == EFDCIOC_SET_DI_ONDELAY) {
 			gpio->DI_OnDelay[set.num] = set.value;
-		else
+			dev->di_on_delay[set.num] = MS2DIOTCK(set.value);
+		} else {
 			gpio->DI_OffDelay[set.num] = set.value;
+			dev->di_off_delay[set.num] = MS2DIOTCK(set.value);
+		}
 		return 0;
 
 	case EFDCIOC_GET_ID:
@@ -871,6 +892,7 @@ static int request_gpios(struct device *dev)
 
 static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 {
+	struct efdcgpio_dev *dev = &efdcgpio_dev;
 	int res;
 
 	if (tm_efdc_gpio_miscdev.parent) {
@@ -897,26 +919,26 @@ static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 	at91_set_gpio_output(EFDC_PIN_LOAD_DET, 1);
 	at91_set_gpio_input(EFDC_PIN_DO_FLAG, 1);
 
-	// create kthread for polling analog I/O:
-	init_waitqueue_head(&efdcgpio_dev.aio_wqh);
-	res = rtdm_nrtsig_init(&efdcgpio_dev.aio_nrt_sig, tm_efdc_gpio_aio_nrt_sig, &efdcgpio_dev);
-	if (res) {
-		printk(KERN_ERR DRIVER_NAME ": rtdm_nrtsig_init() failed: %d\n", res);
-		return res;
-	}
+	// prepare aio hrtimer
+	hrtimer_init(&dev->aio_timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
+	dev->aio_timer.function = tm_efdc_gpio_aio_timer_cb;
 
-	efdcgpio_dev.aio_kthread = kthread_create(tm_efdc_gpio_aio_kthread, &efdcgpio_dev, "efdcgpiod");
-	if (IS_ERR(efdcgpio_dev.aio_kthread)) {
-		int ret = PTR_ERR(efdcgpio_dev.aio_kthread);
+	// create kthread for polling analog I/O:
+	init_waitqueue_head(&dev->aio_wqh);
+
+	dev->aio_kthread = kthread_create(tm_efdc_gpio_aio_kthread, &efdcgpio_dev, "efdcgpiod");
+	if (IS_ERR(dev->aio_kthread)) {
+		int ret = PTR_ERR(dev->aio_kthread);
 		printk(KERN_ERR DRIVER_NAME ": kthread_create() failed: %d\n", ret);
 		return ret;
 	}
-	efdcgpio_dev.aio_kthread->prio = 5; //MAX_RT_PRIO - 5;
+	dev->aio_kthread->prio = 5; //MAX_RT_PRIO - 5;
   
 	// start ticking
-	rtdm_task_init(&efdcgpio_dev.dio_task, "efdcgpio-dio", tm_efdc_gpio_dio_task, &efdcgpio_dev, 90, POLL_INTERVAL);
+	rtdm_task_init(&dev->dio_task, "efdcgpio-dio", tm_efdc_gpio_dio_task, &efdcgpio_dev, 90, DIO_POLL_INT);
+	hrtimer_start(&dev->aio_timer, ktime_set(0, AIO_POLL_INT), HRTIMER_MODE_REL);
 
-	wake_up_process(efdcgpio_dev.aio_kthread);
+	wake_up_process(dev->aio_kthread);
 
 	printk(KERN_INFO DRIVER_NAME ": started succesfully\n");
 
