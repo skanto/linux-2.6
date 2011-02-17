@@ -361,7 +361,7 @@ static void tm_efdc_gpio_dio_task(void *cookie)
 
 		// filter power bits:
 		pwr_last = dev->pwr_last;
-		dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, (portc >> 13), dev->pwr_last,
+		dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, ~(portc >> 13), pwr_last,
 						       dev->pwr_delay, pwr_on_delay, pwr_off_delay,
 						       NULL);
 		dev->gpio.Power = dev->pwr_last;
