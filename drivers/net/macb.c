@@ -248,16 +248,16 @@ static int macb_mii_probe(struct net_device *dev)
 	return 0;
 }
 
-#ifdef	CONFIG_MACH_TM_EFDC
+#ifdef	CONFIG_FIXED_PHY
 extern struct mii_bus *fixed_mdio_bus(void);
-#endif	// CONFIG_MACH_TM_EFDC
+#endif	// CONFIG_FIXED_PHY
 
 static int macb_mii_init(struct macb *bp)
 {
 	struct eth_platform_data *pdata;
 	int err = -ENXIO, i;
 
-#ifdef	CONFIG_MACH_TM_EFDC
+#ifdef	CONFIG_FIXED_PHY
 	bp->mii_bus = fixed_mdio_bus();
 
 	if (bp->mii_bus) {
@@ -265,7 +265,7 @@ static int macb_mii_init(struct macb *bp)
 
 		return macb_mii_probe(bp->dev) == 0 ? 0 : -ENXIO;
 	}
-#endif	// CONFIG_MACH_TM_EFDC
+#endif	// CONFIG_FIXED_PHY
 
 	/* Enable managment port */
 	macb_writel(bp, NCR, MACB_BIT(MPE));
@@ -875,6 +875,7 @@ static void macb_init_hw(struct macb *bp)
 		config |= MACB_BIT(CAF);	/* Copy All Frames */
 	if (!(bp->dev->flags & IFF_BROADCAST))
 		config |= MACB_BIT(NBC);	/* No BroadCast */
+	config |= MACB_BIT(BIG);		/* Enable BIG frames */
 	macb_writel(bp, NCFGR, config);
 
 	/* Initialize TX and RX buffers */
