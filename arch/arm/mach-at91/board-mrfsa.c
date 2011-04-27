@@ -45,6 +45,10 @@
 #include <linux/input.h>
 #include <mach/at91sam9_smc.h>
 
+#include <linux/phy.h>
+#include <linux/ethtool.h>
+#include <linux/phy_fixed.h>
+
 #include "sam9_smc.h"
 #include "generic.h"
 
@@ -261,7 +265,6 @@ static struct i2c_board_info mrfsa_i2c_devices[] = {
  */
 static struct at91_eth_data __initdata mrfsa_macb_data = {
 	.phy_mask	= 0,
-//	.phy_irq_pin	= AT91_PIN_PA7,
 	.is_rmii	= 0,
 };
 
@@ -270,11 +273,12 @@ static struct at91_eth_data __initdata mrfsa_macb_data = {
  * MCI (SD/MMC)
  * det_pin, wp_pin and vcc_pin are not connected
  */
-static struct at91_mmc_data __initdata mrfsa_mmc_data = {
-	.det_pin	= AT91_PIN_PB25,
-	.slot_b		= 0,
-	.wire4		= 1,
-	.wp_pin		= AT91_PIN_PB21,
+static struct mci_platform_data __initdata mrfsa_mci_data = {
+	.slot[0] = {
+		.bus_width	= 4,
+		.detect_pin	= AT91_PIN_PB25,
+		.wp_pin		= AT91_PIN_PB21,
+	}
 };
 
 
@@ -332,6 +336,12 @@ static void __init mrfsa_add_device_buttons(void) {}
 
 static void __init mrfsa_board_init(void)
 {
+	struct fixed_phy_status fixed_phy_status = {
+		.link			= 1,
+		.speed			= SPEED_100,
+		.duplex			= DUPLEX_FULL,
+	};
+
 	/* Serial */
 	at91_add_device_serial();
 	/* Watchdog */
@@ -350,9 +360,12 @@ static void __init mrfsa_board_init(void)
 	i2c_register_board_info(0, mrfsa_i2c_devices, ARRAY_SIZE(mrfsa_i2c_devices));
 	platform_device_register(&mrfsa_i2c_device);
 	/* Ethernet */
+	if (fixed_phy_add(PHY_POLL, 1, &fixed_phy_status) != 0) {
+		printk(KERN_ERR "fixed_phy_add() failed!\n");
+	}
 	at91_add_device_eth(&mrfsa_macb_data);
 	/* MMC */
-	at91_add_device_mmc(0, &mrfsa_mmc_data);
+	at91_add_device_mci(0, &mrfsa_mci_data);
 	/* SSC */
 	at91_add_device_ssc(AT91SAM9260_ID_SSC, ATMEL_SSC_TX);
 	/* LEDs */
