@@ -1,7 +1,7 @@
 /*
  * GPIO driver for TM-EFDC Digital and Analog I/O
  *
- * Copyright (C) 2010 Telemerkki Oy <www.telemerkki.fi>
+ * Copyright (C) 2010-2011 Telemerkki Oy <www.telemerkki.fi>
  * Copyright (C) 2009 Embedtronics Oy
  * Copyright (C) 2007 Renaud CERRATO r.cerrato@til-technologies.fr
  *
@@ -37,7 +37,9 @@
 
 #include <linux/tm_efdc-gpio.h>
 
+#ifdef	XENOMAI
 #include <xenomai/rtdm/rtdm_driver.h>
+#endif
 
 #define	DRIVER_NAME		"efdc-gpio"
 #define	DIO_POLL_HZ		(2500UL)	// poll interval (Hz)
@@ -63,10 +65,15 @@ typedef struct efdcgpio_file_private {
 
 static struct efdcgpio_dev {
 	struct task_struct	*aio_kthread;	// analog I/O thread
+#ifndef	XENOMAI
+	struct hrtimer		dio_timer;	// digital I/O timer
+#endif
 	struct hrtimer		aio_timer;	// analog I/O timer
 	volatile int		aio_poll_count;	// analog I/O poll count
 	wait_queue_head_t	aio_wqh;	// analog I/O wait queue..
+#ifdef	XENOMAI
 	rtdm_task_t		dio_task;	// digital I/O task
+#endif
 
 	tm_efdc_gpio_t		gpio;		// values
 
@@ -343,53 +350,72 @@ static enum hrtimer_restart tm_efdc_gpio_aio_timer_cb(struct hrtimer *tmr)
 }
 
 /* ......................................................................... */
+static void tm_efdc_gpio_dio_poll(struct efdcgpio_dev *dev)
+{
+	u32 portb, portc, pwr_last;
+
+	// get switches and power status:
+	portb = at91_sys_read(AT91_PIOB + PIO_PDSR);	// read port B inputs
+	portc = at91_sys_read(AT91_PIOC + PIO_PDSR);	// read port C inputs
+
+	// poll digital I/O
+	if (dev->gpio.Configured) {
+		dev->gpio.PollCount++;
+		poll_dio(dev);
+	}
+
+	// filter power bits:
+	pwr_last = dev->pwr_last;
+	dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, ~(portc >> 13), pwr_last,
+					       dev->pwr_delay, pwr_on_delay, pwr_off_delay,
+					       NULL);
+	dev->gpio.Power = dev->pwr_last;
+
+	if (dev->pwr_last != pwr_last) {
+		atomic_inc(&efdcgpio_dev.power_evn_num);	// increment event counter
+		//wake_up_interruptible(&tm_efdc_gpio_event_queue);
+	}
+
+	// filter switch inputs:
+	portb = ((~portb) >> 24) & 0xff;
+
+	if (portb == dev->id_last) {
+		if (--dev->id_delay <= 0) {
+			dev->gpio.ID = portb;
+			dev->id_delay = ID_SWITCH_DELAY;
+		}
+	} else {
+		if (++dev->id_delay > ID_SWITCH_DELAY) {
+			dev->id_delay = ID_SWITCH_DELAY;
+		}
+	}
+
+	dev->id_last = portb;
+}
+
+#ifndef	XENOMAI
+/* ......................................................................... */
+static enum hrtimer_restart tm_efdc_gpio_dio_timer_cb(struct hrtimer *tmr)
+{
+	struct efdcgpio_dev *dev = &efdcgpio_dev;
+	tm_efdc_gpio_dio_poll(dev);
+	hrtimer_add_expires_ns(tmr, DIO_POLL_INT);
+	return HRTIMER_RESTART;
+}
+#endif
+
+/* ......................................................................... */
+#ifdef	XENOMAI
 static void tm_efdc_gpio_dio_task(void *cookie)
 {
 	struct efdcgpio_dev *dev = cookie;
-	u32 portb, portc, pwr_last;
 
 	for (;;) {
-		// get switches and power status:
-		portb = at91_sys_read(AT91_PIOB + PIO_PDSR);	// read port B inputs
-		portc = at91_sys_read(AT91_PIOC + PIO_PDSR);	// read port C inputs
-
-		// poll digital I/O
-		if (dev->gpio.Configured) {
-			dev->gpio.PollCount++;
-			poll_dio(dev);
-		}
-
-		// filter power bits:
-		pwr_last = dev->pwr_last;
-		dev->pwr_last = tm_efdc_gpio_in_filter(dev, 2, ~(portc >> 13), pwr_last,
-						       dev->pwr_delay, pwr_on_delay, pwr_off_delay,
-						       NULL);
-		dev->gpio.Power = dev->pwr_last;
-
-		if (dev->pwr_last != pwr_last) {
-			atomic_inc(&efdcgpio_dev.power_evn_num);	// increment event counter
-			//wake_up_interruptible(&tm_efdc_gpio_event_queue);
-		}
-
-		// filter switch inputs:
-		portb = ((~portb) >> 24) & 0xff;
-
-		if (portb == dev->id_last) {
-			if (--dev->id_delay <= 0) {
-				dev->gpio.ID = portb;
-				dev->id_delay = ID_SWITCH_DELAY;
-			}
-		} else {
-			if (++dev->id_delay > ID_SWITCH_DELAY) {
-				dev->id_delay = ID_SWITCH_DELAY;
-			}
-		}
-
-		dev->id_last = portb;
-
+		tm_efdc_gpio_dio_poll(dev);
 		rtdm_task_wait_period();
 	}
 }
+#endif
 
 
 /* ......................................................................... */
@@ -919,6 +945,12 @@ static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 	at91_set_gpio_output(EFDC_PIN_LOAD_DET, 1);
 	at91_set_gpio_input(EFDC_PIN_DO_FLAG, 1);
 
+#ifndef	XENOMAI
+	// prepare dio hrtimer
+	hrtimer_init(&dev->dio_timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
+	dev->dio_timer.function = tm_efdc_gpio_dio_timer_cb;
+#endif
+
 	// prepare aio hrtimer
 	hrtimer_init(&dev->aio_timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
 	dev->aio_timer.function = tm_efdc_gpio_aio_timer_cb;
@@ -935,7 +967,11 @@ static int __devinit tm_efdc_gpio_probe(struct platform_device *pdev)
 	dev->aio_kthread->prio = 5; //MAX_RT_PRIO - 5;
   
 	// start ticking
+#ifdef	XENOMAI
 	rtdm_task_init(&dev->dio_task, "efdcgpio-dio", tm_efdc_gpio_dio_task, &efdcgpio_dev, 90, DIO_POLL_INT);
+#else
+	hrtimer_start(&dev->dio_timer, ktime_set(0, DIO_POLL_INT), HRTIMER_MODE_REL);
+#endif
 	hrtimer_start(&dev->aio_timer, ktime_set(0, AIO_POLL_INT), HRTIMER_MODE_REL);
 
 	wake_up_process(dev->aio_kthread);
