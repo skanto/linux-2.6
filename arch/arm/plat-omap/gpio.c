@@ -17,7 +17,6 @@
 #include <linux/sysdev.h>
 #include <linux/err.h>
 #include <linux/clk.h>
-#include <linux/irq.h>		/* For irq_desc */
 #include <linux/io.h>
 
 #include <mach/hardware.h>
@@ -167,7 +166,7 @@ struct gpio_bank {
 	u32 saved_risingdetect;
 #endif
 	u32 level_mask;
-	ipipe_spinlock_t lock;
+	spinlock_t lock;
 	struct gpio_chip chip;
 	struct clk *dbck;
 };
@@ -1112,7 +1111,7 @@ static void gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 			if (!(isr & 1))
 				continue;
 
-			ipipe_handle_irq_cond(gpio_irq);
+			generic_handle_irq(gpio_irq);
 		}
 	}
 	/* if bank has any level sensitive GPIO pin interrupt

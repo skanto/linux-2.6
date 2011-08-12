@@ -11,7 +11,6 @@
  */
 
 #include <linux/init.h>
-#include <linux/ipipe_base.h>
 
 #include <mach/hardware.h>
 #include <asm/leds.h>

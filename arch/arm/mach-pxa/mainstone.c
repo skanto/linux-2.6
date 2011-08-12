@@ -27,7 +27,6 @@
 #include <linux/gpio_keys.h>
 #include <linux/pwm_backlight.h>
 #include <linux/smc91x.h>
-#include <linux/ipipe.h>
 
 #include <asm/types.h>
 #include <asm/setup.h>
@@ -166,7 +165,7 @@ static void mainstone_irq_handler(unsigned int irq, struct irq_desc *desc)
 		GEDR(0) = GPIO_bit(0);  /* clear useless edge notification */
 		if (likely(pending)) {
 			irq = MAINSTONE_IRQ(0) + __ffs(pending);
-			ipipe_handle_irq_cond(irq);
+			generic_handle_irq(irq);
 		}
 		pending = MST_INTSETCLR & mainstone_irq_enabled;
 	} while (pending);

@@ -3,8 +3,6 @@
  * Copyright (C) 2003-2005 Simtec Electronics
  *	Ben Dooks, <ben@simtec.co.uk>
  *
- * Copyright (C) 2006, 2007 Sebastian Smolorz <ssmolorz@emlix.com>, emlix GmbH
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -29,7 +27,6 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
-#include <linux/module.h>
 
 #include <asm/system.h>
 #include <asm/leds.h>
@@ -45,6 +42,7 @@
 #include <plat/clock.h>
 #include <plat/cpu.h>
 
+static unsigned long timer_startval;
 static unsigned long timer_usec_ticks;
 
 #ifndef TICK_MAX
@@ -63,39 +61,6 @@ static unsigned long timer_usec_ticks;
  * Original patch by Dimitry Andric, updated by Ben Dooks
 */
 
-static unsigned long last_free_running_tcnt = 0;
-static unsigned long free_running_tcon = 0;
-static unsigned long timer_lxlost = 0;
-
-#ifdef CONFIG_IPIPE
-
-#ifdef CONFIG_NO_IDLE_HZ
-#error "dynamic tick timer not yet supported with IPIPE"
-#endif /* CONFIG_NO_IDLE_HZ */
-
-unsigned int __ipipe_mach_ticks_per_jiffy;
-EXPORT_SYMBOL(__ipipe_mach_ticks_per_jiffy);
-
-int __ipipe_mach_timerint = IRQ_TIMER4;
-EXPORT_SYMBOL(__ipipe_mach_timerint);
-
-static unsigned long long *tsc;
-static unsigned *last_cnt;
-static unsigned long timer_ackval = 1UL << (IRQ_TIMER4 - IRQ_EINT0);
-static IPIPE_DEFINE_SPINLOCK(timer_lock);
-
-int __ipipe_mach_timerstolen = 0;
-EXPORT_SYMBOL(__ipipe_mach_timerstolen);
-
-void __ipipe_mach_get_tscinfo(struct __ipipe_tscinfo *info)
-{
-	info->type = IPIPE_TSC_TYPE_DECREMENTER;
-	info->u.dec.counter = (unsigned *)0x51000038;
-	info->u.dec.mask = 0xffff;
-	info->u.dec.last_cnt = last_cnt;
-	info->u.dec.tsc = tsc;
-}
-#endif /* CONFIG_IPIPE */
 
 /* timer_mask_usec_ticks
  *
@@ -126,45 +91,38 @@ static inline unsigned long timer_ticks_to_usec(unsigned long ticks)
 	return res >> TIMER_USEC_SHIFT;
 }
 
-static inline unsigned long timer_freerunning_getvalue(void)
-{
-	return __raw_readl(S3C2410_TCNTO(3));
-}
-
-static inline unsigned long timer_freerunning_getticksoffset(unsigned long tval)
-{
-	long tdone;
-
-	tdone =  last_free_running_tcnt - tval;
-	if (tdone < 0)
-		tdone += 0x10000;
-
-	return tdone;
-}
-
-static inline unsigned long getticksoffset(void)
-{
-	return timer_freerunning_getticksoffset(timer_freerunning_getvalue());
-}
-
-#ifdef CONFIG_IPIPE
-static inline unsigned long getticksoffset_tscupdate(void)
-{
-	unsigned long tval;
-	unsigned long ticks;
-
-	tval = timer_freerunning_getvalue();
-	ticks = timer_freerunning_getticksoffset(tval);
-	last_free_running_tcnt = tval;
-	*tsc += ticks;
-	*last_cnt = last_free_running_tcnt;
-	return ticks;
-}
-#endif /* CONFIG_IPIPE */
+/***
+ * Returns microsecond  since last clock interrupt.  Note that interrupts
+ * will have been disabled by do_gettimeoffset()
+ * IRQs are disabled before entering here from do_gettimeofday()
+ */
 
 static unsigned long s3c2410_gettimeoffset (void)
 {
-	return timer_ticks_to_usec(timer_lxlost + getticksoffset());
+	unsigned long tdone;
+	unsigned long tval;
+
+	/* work out how many ticks have gone since last timer interrupt */
+
+	tval =  __raw_readl(S3C2410_TCNTO(4));
+	tdone = timer_startval - tval;
+
+	/* check to see if there is an interrupt pending */
+
+	if (s3c24xx_ostimer_pending()) {
+		/* re-read the timer, and try and fix up for the missed
+		 * interrupt. Note, the interrupt may go off before the
+		 * timer has re-loaded from wrapping.
+		 */
+
+		tval =  __raw_readl(S3C2410_TCNTO(4));
+		tdone = timer_startval - tval;
+
+		if (tval != 0)
+			tdone += timer_startval;
+	}
+
+	return timer_ticks_to_usec(tdone);
 }
 
 
@@ -174,13 +132,6 @@ static unsigned long s3c2410_gettimeoffset (void)
 static irqreturn_t
 s3c2410_timer_interrupt(int irq, void *dev_id)
 {
-#ifdef CONFIG_IPIPE
-	timer_lxlost = 0;
-
-	if (!__ipipe_mach_timerstolen)
-		getticksoffset_tscupdate();
-#endif /* CONFIG_IPIPE */
-
 	timer_tick();
 	return IRQ_HANDLED;
 }
@@ -202,10 +153,10 @@ static struct clk *tdiv;
 static struct clk *timerclk;
 
 /*
- * Set up timer interrupt.
+ * Set up timer interrupt, and return the current time in seconds.
  *
- * Currently we use timer4 as event timer and timer3 as tick counter which
- * permanently counts ticks without interrupt generation.
+ * Currently we only use timer4, as it is the only timer which has no
+ * other function that can be exploited externally
  */
 static void s3c2410_timer_setup (void)
 {
@@ -213,7 +164,6 @@ static void s3c2410_timer_setup (void)
 	unsigned long tcnt;
 	unsigned long tcfg1;
 	unsigned long tcfg0;
-	unsigned long intmask;
 
 	tcnt = TICK_MAX;  /* default value for tcnt */
 
@@ -225,8 +175,8 @@ static void s3c2410_timer_setup (void)
 		tcnt = 12000000 / HZ;
 
 		tcfg1 = __raw_readl(S3C2410_TCFG1);
-		tcfg1 &= ~(S3C2410_TCFG1_MUX4_MASK | S3C2410_TCFG1_MUX3_MASK);
-		tcfg1 |= (S3C2410_TCFG1_MUX4_TCLK1 | S3C2410_TCFG1_MUX3_TCLK1);
+		tcfg1 &= ~S3C2410_TCFG1_MUX4_MASK;
+		tcfg1 |= S3C2410_TCFG1_MUX4_TCLK1;
 		__raw_writel(tcfg1, S3C2410_TCFG1);
 	} else {
 		unsigned long pclk;
@@ -260,14 +210,6 @@ static void s3c2410_timer_setup (void)
 	tcfg0 = __raw_readl(S3C2410_TCFG0);
 	tcfg1 = __raw_readl(S3C2410_TCFG1);
 
-#ifdef CONFIG_IPIPE
-	tsc = (unsigned long long *)__ipipe_tsc_area;
-	last_cnt = (unsigned *)(tsc + 1);		/* means: +8 bytes */
-	barrier();
-
-	__ipipe_mach_ticks_per_jiffy = tcnt;
-#endif /* CONFIG_IPIPE */
-
 	/* timers reload after counting zero, so reduce the count by 1 */
 
 	tcnt--;
@@ -284,37 +226,23 @@ static void s3c2410_timer_setup (void)
 	__raw_writel(tcfg1, S3C2410_TCFG1);
 	__raw_writel(tcfg0, S3C2410_TCFG0);
 
-	/* ensure timers are stopped... */
-	tcon &= ~(0x3f<<17);
+	timer_startval = tcnt;
+	__raw_writel(tcnt, S3C2410_TCNTB(4));
+
+	/* ensure timer is stopped... */
+
+	tcon &= ~(7<<20);
+	tcon |= S3C2410_TCON_T4RELOAD;
+	tcon |= S3C2410_TCON_T4MANUALUPD;
+
 	__raw_writel(tcon, S3C2410_TCON);
-
-	/* Mask timer3 interrupt. */
-	intmask = __raw_readl(S3C2410_INTMSK);
-	intmask |= 1UL << (IRQ_TIMER3 - IRQ_EINT0);
-	__raw_writel(intmask, S3C2410_INTMSK);
-
-	/* Set timer values */
 	__raw_writel(tcnt, S3C2410_TCNTB(4));
 	__raw_writel(tcnt, S3C2410_TCMPB(4));
-	__raw_writel(0xffff, S3C2410_TCNTB(3));
-	__raw_writel(0xffff, S3C2410_TCMPB(3));
 
-	/* Set base tcon value for later programming of timer 4 by Xenomai. */
-	free_running_tcon = tcon |  S3C2410_TCON_T3RELOAD | S3C2410_TCON_T3START;
-
-	/* Set auto reloads for both timers. */
-	tcon |= S3C2410_TCON_T3RELOAD | S3C2410_TCON_T4RELOAD;
-
-	/* Manual update */
-	__raw_writel(tcon | S3C2410_TCON_T3MANUALUPD
-			  | S3C2410_TCON_T4MANUALUPD, S3C2410_TCON);
-
-	tcon |= S3C2410_TCON_T3START | S3C2410_TCON_T4START;
-	/* Start timers.*/
+	/* start the timer running */
+	tcon |= S3C2410_TCON_T4START;
+	tcon &= ~S3C2410_TCON_T4MANUALUPD;
 	__raw_writel(tcon, S3C2410_TCON);
-
-	/* Save start value of timer 3 as begining of first period. */
-	last_free_running_tcnt = 0xffff;
 }
 
 static void __init s3c2410_timer_resources(void)
@@ -355,58 +283,3 @@ struct sys_timer s3c24xx_timer = {
 	.offset		= s3c2410_gettimeoffset,
 	.resume		= s3c2410_timer_setup
 };
-
-#ifdef CONFIG_IPIPE
-void __ipipe_mach_acktimer(void)
-{
-	__raw_writel(timer_ackval, S3C2410_SRCPND);
-	__raw_writel(timer_ackval, S3C2410_INTPND);
-}
-
-notrace unsigned long long __ipipe_mach_get_tsc(void)
-{
-	unsigned long long result;
-	unsigned long flags;
-
-	local_irq_save_hw_notrace(flags);
-	spin_lock(&timer_lock);
-	result = *tsc + getticksoffset();
-	spin_unlock(&timer_lock);
-	local_irq_restore_hw_notrace(flags);
-	return result;
-}
-EXPORT_SYMBOL(__ipipe_mach_get_tsc);
-
-static inline void set_dec(unsigned long reload)
-{
-	__raw_writel(reload, S3C2410_TCNTB(4));
-	/* Manual update */
-	__raw_writel(free_running_tcon | S3C2410_TCON_T4MANUALUPD, S3C2410_TCON);
-	/* Start timer */
-	__raw_writel(free_running_tcon | S3C2410_TCON_T4START, S3C2410_TCON);
-}
-
-void __ipipe_mach_set_dec(unsigned long reload)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&timer_lock, flags);
-	timer_lxlost += getticksoffset_tscupdate();
-	set_dec(reload);
-	spin_unlock_irqrestore(&timer_lock, flags);
-}
-EXPORT_SYMBOL(__ipipe_mach_set_dec);
-
-void __ipipe_mach_release_timer(void)
-{
-	free_running_tcon |= S3C2410_TCON_T4RELOAD;
-	__ipipe_mach_set_dec(__ipipe_mach_ticks_per_jiffy - 1);
-	free_running_tcon &= ~S3C2410_TCON_T4RELOAD;
-}
-EXPORT_SYMBOL(__ipipe_mach_release_timer);
-
-unsigned long __ipipe_mach_get_dec(void)
-{
-	return __raw_readl(S3C2410_TCNTO(4));
-}
-#endif /* CONFIG_IPIPE */

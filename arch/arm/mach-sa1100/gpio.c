@@ -32,9 +32,9 @@ static int sa1100_direction_input(struct gpio_chip *chip, unsigned offset)
 {
 	unsigned long flags;
 
-	local_irq_save_hw(flags);
+	local_irq_save(flags);
 	GPDR &= ~GPIO_GPIO(offset);
-	local_irq_restore_hw(flags);
+	local_irq_restore(flags);
 	return 0;
 }
 
@@ -42,10 +42,10 @@ static int sa1100_direction_output(struct gpio_chip *chip, unsigned offset, int 
 {
 	unsigned long flags;
 
-	local_irq_save_hw(flags);
+	local_irq_save(flags);
 	sa1100_gpio_set(chip, offset, value);
 	GPDR |= GPIO_GPIO(offset);
-	local_irq_restore_hw(flags);
+	local_irq_restore(flags);
 	return 0;
 }
 

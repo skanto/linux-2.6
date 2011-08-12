@@ -173,9 +173,6 @@ static int vmap_page_range_noflush(unsigned long start, unsigned long end,
 
 	if (unlikely(err))
 		return err;
-
- 	__ipipe_pin_range_globally(start, end);
-
 	return nr;
 }
 

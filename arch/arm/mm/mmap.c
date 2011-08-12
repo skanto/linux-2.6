@@ -56,7 +56,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	if (flags & MAP_FIXED) {
 		if (aliasing && flags & MAP_SHARED && addr & (SHMLBA - 1))
 			return -EINVAL;
-		goto found_addr;
+		return addr;
 	}
 
 	if (len > TASK_SIZE)
@@ -71,7 +71,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 		vma = find_vma(mm, addr);
 		if (TASK_SIZE - len >= addr &&
 		    (!vma || addr + len <= vma->vm_start))
-			goto found_addr;
+			return addr;
 	}
 	if (len > mm->cached_hole_size) {
 	        start_addr = addr = mm->free_area_cache;
@@ -105,7 +105,7 @@ full_search:
 			 * Remember the place where we stopped the search:
 			 */
 			mm->free_area_cache = addr + len;
-			goto found_addr;
+			return addr;
 		}
 		if (addr + mm->cached_hole_size < vma->vm_start)
 		        mm->cached_hole_size = vma->vm_start - addr;
@@ -113,18 +113,6 @@ full_search:
 		if (do_align)
 			addr = COLOUR_ALIGN(addr, pgoff);
 	}
-
-  found_addr:
-#ifdef CONFIG_ARM_FCSE_BEST_EFFORT
-	if (addr + len > FCSE_TASK_SIZE && mm->context.pid) {
-		mm->context.big = 1;
-		fcse_relocate_mm_to_null_pid(mm);
-	}
-#elif defined(CONFIG_ARM_FCSE_GUARANTEED)
-	if (addr + len > FCSE_TASK_SIZE)
-		return -ENOMEM;
-#endif /* CONFIG_ARM_FCSE_GUARANTEED */
-	return addr;
 }
 
 

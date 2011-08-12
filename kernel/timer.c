@@ -1163,26 +1163,6 @@ static inline void calc_load(unsigned long ticks)
 	}
 }
 
-#ifdef CONFIG_IPIPE
-
-void update_root_process_times(struct pt_regs *regs)
-{
-	int cpu, user_tick = user_mode(regs);
-
-	if (__ipipe_root_tick_p(regs)) {
-		update_process_times(user_tick);
-		return;
-	}
-
-	run_local_timers();
-	cpu = smp_processor_id();
-	if (rcu_pending(cpu))
-		rcu_check_callbacks(cpu, user_tick);
-	run_posix_cpu_timers(current);
-}
-
-#endif
-
 /*
  * This function runs timers and the timer-tq in bottom half context.
  */
